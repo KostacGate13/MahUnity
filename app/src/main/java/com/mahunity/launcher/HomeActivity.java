@@ -502,6 +502,11 @@ public final class HomeActivity extends Activity implements Apps.Listener, Media
     }
 
     private void openPlayer(View from) {
+        // Until track info is allowed, the card says so and a tap goes straight to the switch.
+        if (!media.hasAccess()) {
+            openTrackInfoAccess();
+            return;
+        }
         String pkg = media.packageName();
         Intent launch = pkg == null ? null : getPackageManager().getLaunchIntentForPackage(pkg);
         if (launch != null && startSafely(launch)) return;

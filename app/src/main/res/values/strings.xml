@@ -42,7 +42,7 @@
     <string name="no_media">Nothing playing</string>
     <string name="media_playing">Music is playing</string>
     <string name="media_hint">Tap ▶ to play</string>
-    <string name="media_hint_access">For titles: Settings</string>
+    <string name="media_hint_access">Tap here to show titles</string>
 
     <string name="set_home">Home screen</string>
     <string name="home_is_default">Default ✓</string>

@@ -40,7 +40,7 @@
     <string name="no_media">Δεν παίζει μουσική</string>
     <string name="media_playing">Παίζει μουσική</string>
     <string name="media_hint">Πατήστε ▶ για αναπαραγωγή</string>
-    <string name="media_hint_access">Για τίτλους: Ρυθμίσεις</string>
+    <string name="media_hint_access">Πατήστε εδώ για τίτλους</string>
 
     <string name="set_home">Αρχική οθόνη</string>
     <string name="home_is_default">Προεπιλογή ✓</string>

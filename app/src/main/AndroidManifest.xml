@@ -56,7 +56,7 @@
             </intent-filter>
         </activity>
 
-        <!-- Optional. Switched on in Settings > Track info; never reads a notification, see MediaListener. -->
+        <!-- Optional. Switched on in Settings > Track info; looks only at media notifications, see MediaListener. -->
         <service
             android:name=".MediaListener"
             android:exported="true"

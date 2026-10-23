@@ -100,7 +100,8 @@ final class CarView extends View {
                 getParent().requestDisallowInterceptTouchEvent(true);
                 return true;
             case MotionEvent.ACTION_MOVE:
-                angle -= (e.getX() - lastX) * 0.35f;
+                // The near side follows the finger.
+                angle += (e.getX() - lastX) * 0.35f;
                 lastX = e.getX();
                 invalidate();
                 return true;

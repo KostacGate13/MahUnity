@@ -14,11 +14,13 @@ import android.os.SystemClock;
 import android.provider.Settings;
 import android.view.KeyEvent;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
- * The player behind the media card. With track info allowed (MediaListener enabled) it follows the active
- * media session: title, artist, art, position. Without it the keys go out as media button events and
+ * The player behind the media card. With track info allowed (MediaListener enabled) it watches every media
+ * session and follows the one playing: title, artist, art, position. Players that publish no session are
+ * read from their media notification instead. Without access the keys go out as media button events and
  * AudioManager.isMusicActive() is the only thing known.
  */
 final class MediaWatcher implements MediaSessionManager.OnActiveSessionsChangedListener {
@@ -32,12 +34,17 @@ final class MediaWatcher implements MediaSessionManager.OnActiveSessionsChangedL
     private final ComponentName service;
     private final Listener listener;
     private final Handler handler = new Handler(Looper.getMainLooper());
+    /** Every session we listen to, the followed one among them. */
+    private final List<MediaController> watched = new ArrayList<>();
     private MediaController controller;
+    /** A session reached only through a player's notification, kept while that notification lasts. */
+    private MediaController fromNotification;
     private boolean watching;
 
     private final MediaController.Callback callback = new MediaController.Callback() {
         @Override public void onPlaybackStateChanged(PlaybackState state) {
-            listener.onMediaChanged();
+            // Another player may have started or stopped: follow whichever plays now.
+            pick();
         }
 
         @Override public void onMetadataChanged(MediaMetadata metadata) {
@@ -45,6 +52,12 @@ final class MediaWatcher implements MediaSessionManager.OnActiveSessionsChangedL
         }
 
         @Override public void onSessionDestroyed() {
+            if (watching) refresh();
+        }
+    };
+
+    private final Runnable notificationChanged = new Runnable() {
+        @Override public void run() {
             if (watching) refresh();
         }
     };
@@ -72,71 +85,140 @@ final class MediaWatcher implements MediaSessionManager.OnActiveSessionsChangedL
 
     void start() {
         watching = true;
+        MediaListener.observer = notificationChanged;
         if (hasAccess()) {
             try {
                 sessions.addOnActiveSessionsChangedListener(this, service, handler);
-                refresh();
-                return;
             } catch (SecurityException ignored) {
                 // Access was withdrawn between the check and the call.
             }
         }
-        use(null);
+        refresh();
     }
 
     void stop() {
         watching = false;
+        MediaListener.observer = null;
         try {
             sessions.removeOnActiveSessionsChangedListener(this);
         } catch (RuntimeException ignored) {
             // Never added.
         }
-        if (controller != null) controller.unregisterCallback(callback);
+        watch(new ArrayList<MediaController>());
         controller = null;
     }
 
     @Override public void onActiveSessionsChanged(List<MediaController> list) {
-        MediaController pick = null;
-        if (list != null) {
-            for (MediaController c : list) {
-                if (isPlaying(c.getPlaybackState())) {
-                    pick = c;
-                    break;
-                }
+        List<MediaController> next = list == null ? new ArrayList<MediaController>() : new ArrayList<>(list);
+        // A player seen only through its notification joins the list unless it is there already.
+        MediaListener.Track t = MediaListener.track();
+        if (t != null && t.token != null) {
+            if (fromNotification == null || !fromNotification.getSessionToken().equals(t.token)) {
+                fromNotification = new MediaController(context, t.token);
             }
-            if (pick == null && !list.isEmpty()) pick = list.get(0);
+            boolean listed = false;
+            for (MediaController c : next) listed |= c.getSessionToken().equals(t.token);
+            if (!listed) next.add(fromNotification);
+        } else {
+            fromNotification = null;
         }
-        use(pick);
+        watch(next);
+        pick();
     }
 
+    /** Registers for every session in the list and drops the ones that left it. */
+    private void watch(List<MediaController> next) {
+        for (MediaController old : watched) {
+            if (!contains(next, old)) old.unregisterCallback(callback);
+        }
+        List<MediaController> kept = new ArrayList<>();
+        for (MediaController c : next) {
+            MediaController same = find(watched, c);
+            if (same != null) {
+                kept.add(same);
+            } else {
+                c.registerCallback(callback, handler);
+                kept.add(c);
+            }
+        }
+        watched.clear();
+        watched.addAll(kept);
+    }
+
+    /** Follows the first session that is playing, otherwise the most recent one. */
+    private void pick() {
+        MediaController pick = null;
+        for (MediaController c : watched) {
+            if (isPlaying(c.getPlaybackState())) {
+                pick = c;
+                break;
+            }
+        }
+        if (pick == null && !watched.isEmpty()) pick = watched.get(0);
+        controller = pick;
+        listener.onMediaChanged();
+    }
+
+    private static boolean contains(List<MediaController> list, MediaController c) {
+        return find(list, c) != null;
+    }
+
+    private static MediaController find(List<MediaController> list, MediaController c) {
+        for (MediaController x : list) {
+            if (x.getSessionToken().equals(c.getSessionToken())) return x;
+        }
+        return null;
+    }
+
+    /** A player is known: a media session, or a media notification from a player without one. */
     boolean hasSession() {
-        return controller != null;
+        return controller != null || notificationTrack() != null;
     }
 
     String packageName() {
-        return controller == null ? null : controller.getPackageName();
+        if (controller != null) return controller.getPackageName();
+        MediaListener.Track t = notificationTrack();
+        return t == null ? null : t.packageName;
     }
 
     String title() {
-        return text(MediaMetadata.METADATA_KEY_TITLE, MediaMetadata.METADATA_KEY_DISPLAY_TITLE);
+        String s = text(MediaMetadata.METADATA_KEY_TITLE, MediaMetadata.METADATA_KEY_DISPLAY_TITLE);
+        MediaListener.Track t = notificationTrack();
+        return s != null || t == null ? s : t.title;
     }
 
     String artist() {
-        return text(MediaMetadata.METADATA_KEY_ARTIST, MediaMetadata.METADATA_KEY_ALBUM_ARTIST,
+        String s = text(MediaMetadata.METADATA_KEY_ARTIST, MediaMetadata.METADATA_KEY_ALBUM_ARTIST,
                 MediaMetadata.METADATA_KEY_DISPLAY_SUBTITLE);
+        MediaListener.Track t = notificationTrack();
+        return s != null || t == null ? s : t.artist;
     }
 
     Bitmap art() {
         MediaMetadata m = metadata();
-        if (m == null) return null;
-        Bitmap b = m.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART);
-        if (b == null) b = m.getBitmap(MediaMetadata.METADATA_KEY_ART);
-        if (b == null) b = m.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON);
-        return b;
+        Bitmap b = null;
+        if (m != null) {
+            b = m.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART);
+            if (b == null) b = m.getBitmap(MediaMetadata.METADATA_KEY_ART);
+            if (b == null) b = m.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON);
+        }
+        MediaListener.Track t = notificationTrack();
+        return b != null || t == null ? b : t.art;
+    }
+
+    /** The notification's track, when it belongs to the followed player or no session is followed. */
+    private MediaListener.Track notificationTrack() {
+        if (!hasAccess()) return null;
+        MediaListener.Track t = MediaListener.track();
+        if (t == null) return null;
+        if (controller == null || controller.getPackageName().equals(t.packageName)) return t;
+        return null;
     }
 
     boolean playing() {
-        return controller != null ? isPlaying(controller.getPlaybackState()) : audio.isMusicActive();
+        // Some players never report their state; any music on the speakers counts.
+        PlaybackState state = state();
+        return state != null ? isPlaying(state) || audio.isMusicActive() : audio.isMusicActive();
     }
 
     /** Position in ms at {@link #updated()}, or -1 when unknown. */
@@ -181,21 +263,15 @@ final class MediaWatcher implements MediaSessionManager.OnActiveSessionsChangedL
     }
 
     private void refresh() {
-        try {
-            onActiveSessionsChanged(sessions.getActiveSessions(service));
-        } catch (SecurityException e) {
-            use(null);
+        List<MediaController> list = null;
+        if (hasAccess()) {
+            try {
+                list = sessions.getActiveSessions(service);
+            } catch (SecurityException ignored) {
+                // Access was withdrawn.
+            }
         }
-    }
-
-    private void use(MediaController next) {
-        boolean same = controller != null && next != null && controller.getSessionToken().equals(next.getSessionToken());
-        if (!same) {
-            if (controller != null) controller.unregisterCallback(callback);
-            controller = next;
-            if (next != null) next.registerCallback(callback, handler);
-        }
-        listener.onMediaChanged();
+        onActiveSessionsChanged(list);
     }
 
     private void key(int code) {
