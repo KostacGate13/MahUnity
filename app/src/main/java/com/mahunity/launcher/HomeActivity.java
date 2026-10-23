@@ -32,7 +32,8 @@ import java.util.List;
  * Home: the cockpit with the car (or, with the car switched off, the classic tiles), with all apps and
  * Settings as sheets over it.
  */
-public final class HomeActivity extends Activity implements Apps.Listener, MediaWatcher.Listener, SpeedWatcher.Listener {
+public final class HomeActivity extends Activity
+        implements Apps.Listener, MediaWatcher.Listener, SpeedWatcher.Listener, CanBus.Listener {
     private static final int REQUEST_LOCATION = 1;
     private static final String PREF_ACCENT = "accent";
     private static final String PREF_SPEED = "speed";
@@ -49,6 +50,7 @@ public final class HomeActivity extends Activity implements Apps.Listener, Media
     private Apps apps;
     private MediaWatcher media;
     private SpeedWatcher speed;
+    private CanBus can;
 
     private ViewGroup home;
     /** Null on the classic Home. */
@@ -64,6 +66,8 @@ public final class HomeActivity extends Activity implements Apps.Listener, Media
     private AppsGrid grid;
     private SettingsRows.Row rowHome, rowCar, rowStyle, rowAmbient, rowSpeed, rowMedia, rowName;
     private String[] headings;
+    /** The last GPS reading, kept for when the car stops reporting its own speed. */
+    private String gpsSpeed, gpsHeading;
     private int picking = -1;
 
     private final Runnable recheckMedia = new Runnable() {
@@ -79,6 +83,7 @@ public final class HomeActivity extends Activity implements Apps.Listener, Media
         slots = new Slots(this, prefs);
         media = new MediaWatcher(this, this);
         speed = new SpeedWatcher(this, this);
+        can = new CanBus(this, this);
         apps = new Apps(this, this);
 
         buildHome();
@@ -89,6 +94,7 @@ public final class HomeActivity extends Activity implements Apps.Listener, Media
         root.addView(appsPanel);
         root.addView(settingsPanel);
         setContentView(root);
+        can.listen();
     }
 
     private void buildHome() {
@@ -338,11 +344,13 @@ public final class HomeActivity extends Activity implements Apps.Listener, Media
         clock.start();
         top.start();
         media.start();
+        can.start();
         if (prefs.getBoolean(PREF_SPEED, false) && speed.allowed()) {
             speed.start();
         } else {
             clock.hideSpeed();
-            if (vehicle != null) vehicle.setSpeed(null, null);
+            gpsSpeed = null;
+            showVehicleSpeed();
         }
         if (shown == settingsPanel) refreshSettings();
     }
@@ -352,6 +360,7 @@ public final class HomeActivity extends Activity implements Apps.Listener, Media
         clock.stop();
         top.stop();
         media.stop();
+        can.stop();
         speed.stop();
         handler.removeCallbacks(recheckMedia);
     }
@@ -359,6 +368,7 @@ public final class HomeActivity extends Activity implements Apps.Listener, Media
     @Override protected void onDestroy() {
         super.onDestroy();
         apps.close();
+        can.close();
         if (carFrames != null) carFrames.close();
     }
 
@@ -555,7 +565,8 @@ public final class HomeActivity extends Activity implements Apps.Listener, Media
             prefs.edit().putBoolean(PREF_SPEED, false).apply();
             speed.stop();
             clock.hideSpeed();
-            if (vehicle != null) vehicle.setSpeed(null, null);
+            gpsSpeed = null;
+            showVehicleSpeed();
         } else if (speed.allowed()) {
             enableSpeed();
         } else {
@@ -583,7 +594,26 @@ public final class HomeActivity extends Activity implements Apps.Listener, Media
         }
         String value = kmh < 0 ? "–" : String.valueOf(Math.round(kmh));
         clock.setSpeed(value, heading);
-        if (vehicle != null) vehicle.setSpeed(value, heading);
+        gpsSpeed = value;
+        gpsHeading = heading;
+        showVehicleSpeed();
+    }
+
+    // CANBus
+
+    @Override public void onCanChanged() {
+        top.setOutside(can.outside);
+        if (vehicle != null) {
+            vehicle.setCar(can);
+            showVehicleSpeed();
+        }
+    }
+
+    /** The car's own speed while it reports one; otherwise GPS, if that is switched on. */
+    private void showVehicleSpeed() {
+        if (vehicle == null) return;
+        if (can.hasSpeed()) vehicle.setSpeed(String.valueOf(can.speed), gpsHeading, true);
+        else vehicle.setSpeed(gpsSpeed, gpsHeading, false);
     }
 
     // Settings

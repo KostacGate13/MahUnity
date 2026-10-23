@@ -26,6 +26,8 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.APP_MUSIC" />
         </intent>
+        <!-- NWD head units: the CANBus service read by CanBus. -->
+        <package android:name="com.nwd.can.setting" />
     </queries>
 
     <application

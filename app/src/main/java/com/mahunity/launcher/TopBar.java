@@ -17,8 +17,9 @@ import java.util.Locale;
 final class TopBar extends View {
     private final TextPaint mark = new TextPaint(Paint.ANTI_ALIAS_FLAG);
     private final TextPaint time = new TextPaint(Paint.ANTI_ALIAS_FLAG);
+    private final TextPaint outside = new TextPaint(Paint.ANTI_ALIAS_FLAG);
     private final Paint line = new Paint();
-    private String text = "", timeText = "";
+    private String text = "", timeText = "", outsideText = "";
     private float baseline;
     private int inset, clockRight = -1;
     private boolean ticking;
@@ -43,6 +44,15 @@ final class TopBar extends View {
         time.setColor(Chrome.TEXT);
         time.setLetterSpacing(0.08f);
         time.setTextAlign(Paint.Align.RIGHT);
+        outside.setTypeface(Chrome.LIGHT);
+        outside.setColor(Chrome.TEXT_DIM);
+        outside.setTextAlign(Paint.Align.RIGHT);
+    }
+
+    /** The outside temperature from the car, shown left of the small clock; null hides it. */
+    void setOutside(String s) {
+        outsideText = s == null ? "" : s;
+        invalidate();
     }
 
     /** Shows the small clock with its right edge this far from the bar's right edge. */
@@ -50,8 +60,8 @@ final class TopBar extends View {
         clockRight = fromRight;
     }
 
+    /** Keeps the small clock current; it is drawn only once the layout has placed it (showClock). */
     void start() {
-        if (clockRight < 0) return;
         ticking = true;
         removeCallbacks(tick);
         tick.run();
@@ -80,12 +90,19 @@ final class TopBar extends View {
         baseline = h / 2f + size * 0.36f;
         mark.setShader(Chrome.metal(baseline - size * 0.72f, baseline));
         time.setTextSize(h * 0.3f);
+        outside.setTextSize(h * 0.26f);
         line.setShader(Chrome.hairline(0, 0, w, 0, 0xC0));
     }
 
     @Override protected void onDraw(Canvas c) {
         c.drawText(text, inset, baseline, mark);
-        if (clockRight >= 0) c.drawText(timeText, getWidth() - clockRight, baseline, time);
+        if (clockRight >= 0) {
+            float x = getWidth() - clockRight;
+            c.drawText(timeText, x, baseline, time);
+            if (!outsideText.isEmpty()) {
+                c.drawText(outsideText, x - time.measureText(timeText) - time.getTextSize() * 1.2f, baseline, outside);
+            }
+        }
         int h = getHeight();
         c.drawRect(0, h - 1, getWidth(), h, line);
     }
