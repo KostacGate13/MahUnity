@@ -21,7 +21,8 @@ final class CockpitLayout extends ViewGroup {
 
     final TopBar top;
     final ChromeButton gear;
-    final ClockView clock;
+    /** Home's widgets, picked in Settings: the clock or the speedometer-clock, and the media card or another. */
+    final View homeTop, homeBottom;
     final MediaCard media;
     final TileView[] sources;
     final VehicleView vehicle;
@@ -29,7 +30,8 @@ final class CockpitLayout extends ViewGroup {
     final DockBar dock;
 
     private final Rect topRect = new Rect(), gearRect = new Rect(), dockRect = new Rect(), stageRect = new Rect();
-    private final Rect clockRect = new Rect(), clockGlass = new Rect(), mediaRect = new Rect(), vehicleRect = new Rect();
+    private final Rect clockRect = new Rect(), clockGlass = new Rect(), bottomRect = new Rect(), mediaRect = new Rect();
+    private final Rect vehicleRect = new Rect();
     private final Rect[] sourceRects;
     private final RectF glass = new RectF();
     private final Paint background = new Paint();
@@ -39,12 +41,14 @@ final class CockpitLayout extends ViewGroup {
     private float glassRadius;
     private int tab = HOME;
 
-    CockpitLayout(Context context, TopBar top, ChromeButton gear, ClockView clock, MediaCard media,
+    /** homeBottom may be the media card itself; otherwise the media card shows on the Music tab only. */
+    CockpitLayout(Context context, TopBar top, ChromeButton gear, View homeTop, View homeBottom, MediaCard media,
                   TileView[] sources, VehicleView vehicle, CarView car, DockBar dock) {
         super(context);
         this.top = top;
         this.gear = gear;
-        this.clock = clock;
+        this.homeTop = homeTop;
+        this.homeBottom = homeBottom;
         this.media = media;
         this.sources = sources;
         this.vehicle = vehicle;
@@ -57,7 +61,8 @@ final class CockpitLayout extends ViewGroup {
         addView(car);
         addView(top);
         addView(gear);
-        addView(clock);
+        addView(homeTop);
+        if (homeBottom != media) addView(homeBottom);
         addView(media);
         for (TileView t : sources) addView(t);
         addView(vehicle);
@@ -72,15 +77,16 @@ final class CockpitLayout extends ViewGroup {
     /** Switches the cards on the left and turns the car to face the matching way. */
     void showTab(int next, boolean animate) {
         tab = next;
-        clock.setVisibility(next == HOME ? VISIBLE : GONE);
-        media.setVisibility(next == VEHICLE ? GONE : VISIBLE);
+        homeTop.setVisibility(next == HOME ? VISIBLE : GONE);
+        homeBottom.setVisibility(next == HOME ? VISIBLE : GONE);
+        media.setVisibility(next == MUSIC || (next == HOME && homeBottom == media) ? VISIBLE : GONE);
         for (TileView t : sources) t.setVisibility(next == MUSIC ? VISIBLE : GONE);
         vehicle.setVisibility(next == VEHICLE ? VISIBLE : GONE);
         car.turnTo(next == MUSIC ? CarView.RIGHT_SIDE : next == VEHICLE ? CarView.REAR : CarView.FRONT);
         requestLayout();
         invalidate();
         if (!animate) return;
-        View[] incoming = next == HOME ? new View[] {clock, media}
+        View[] incoming = next == HOME ? new View[] {homeTop, homeBottom}
                 : next == MUSIC ? concat(media, sources) : new View[] {vehicle};
         float shift = -getWidth() * 0.02f;
         for (View v : incoming) {
@@ -104,7 +110,8 @@ final class CockpitLayout extends ViewGroup {
         measure(gear, gearRect);
         measure(dock, dockRect);
         measure(car, stageRect);
-        measure(clock, clockRect);
+        measure(homeTop, clockRect);
+        if (homeBottom != media) measure(homeBottom, bottomRect);
         measure(media, mediaRect);
         measure(vehicle, vehicleRect);
         for (int i = 0; i < sources.length; i++) measure(sources[i], sourceRects[i]);
@@ -142,10 +149,11 @@ final class CockpitLayout extends ViewGroup {
             pane.set(pad, stageBottom + pad, w - pad, contentBottom);
         }
         int ph = pane.height(), gap = Math.round(pad * 0.7f);
-        // Home: the clock on glass over the media card. Music: a taller media card over three sources.
+        // Home: the upper widget on glass over the lower one. Music: a taller media card over three sources.
         clockGlass.set(pane.left, pane.top, pane.right, pane.top + Math.round(ph * 0.54f));
         clockRect.set(clockGlass);
         clockRect.inset(Math.round(pad * 0.9f), Math.round(pad * 0.6f));
+        bottomRect.set(pane.left, pane.bottom - Math.round(ph * 0.42f), pane.right, pane.bottom);
         if (tab == MUSIC) {
             mediaRect.set(pane.left, pane.top, pane.right, pane.top + Math.round(ph * 0.52f));
             int top = mediaRect.bottom + gap;
@@ -155,7 +163,7 @@ final class CockpitLayout extends ViewGroup {
                 sourceRects[i].set(l, top, Math.round(l + cw), pane.bottom);
             }
         } else {
-            mediaRect.set(pane.left, pane.bottom - Math.round(ph * 0.42f), pane.right, pane.bottom);
+            mediaRect.set(bottomRect);
         }
         vehicleRect.set(pane);
         glassRadius = s * 0.025f;
@@ -166,7 +174,8 @@ final class CockpitLayout extends ViewGroup {
         layout(top, topRect);
         layout(gear, gearRect);
         layout(dock, dockRect);
-        layout(clock, clockRect);
+        layout(homeTop, clockRect);
+        if (homeBottom != media) layout(homeBottom, bottomRect);
         layout(media, mediaRect);
         layout(vehicle, vehicleRect);
         for (int i = 0; i < sources.length; i++) layout(sources[i], sourceRects[i]);
@@ -188,7 +197,7 @@ final class CockpitLayout extends ViewGroup {
 
     @Override protected void onDraw(Canvas c) {
         c.drawRect(0, 0, getWidth(), getHeight(), background);
-        // Glass under the cards that have none of their own (the media card and tiles draw theirs).
+        // Glass under the cards that have none of their own (the media card, widgets and tiles draw theirs).
         if (tab == HOME) drawGlass(c, clockGlass);
         if (tab == VEHICLE) drawGlass(c, vehicleRect);
     }

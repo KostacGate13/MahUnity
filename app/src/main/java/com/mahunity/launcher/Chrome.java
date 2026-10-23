@@ -21,8 +21,11 @@ final class Chrome {
     static final int PANEL_TOP = 0xFF15181B;
     static final int PANEL_BOTTOM = 0xFF060708;
 
-    /** Ambient lighting presets, in the order Settings cycles through them (names in R.array.ambient_names). */
-    static final int[] ACCENTS = {0xFFDDE4EB, 0xFF5CB8FF, 0xFFFFA23A, 0xFFFF3A3A, 0xFFA37BFF};
+    /** Accent (ambient lighting) colours, as listed in Settings; names in R.array.ambient_names. */
+    static final int[] ACCENTS = {
+        0xFFDDE4EB, 0xFF5CB8FF, 0xFFFFA23A, 0xFFFF3A3A, 0xFFA37BFF, 0xFF3DDC84,
+        0xFFE8C45A, 0xFFD45CE8, 0xFF2EE6D6, 0xFFFF5FA2, 0xFFFFFFFF,
+    };
     static int accent = ACCENTS[0];
 
     static final Typeface THIN = Typeface.create("sans-serif-thin", Typeface.NORMAL);

@@ -47,13 +47,19 @@
     <string name="set_home">Home screen</string>
     <string name="home_is_default">Default ✓</string>
     <string name="home_make_default">Make default</string>
-    <string name="set_ambient">Ambient lighting</string>
+    <string name="set_ambient">Accent colour</string>
     <string-array name="ambient_names">
         <item>Silver</item>
         <item>Ice blue</item>
         <item>Amber</item>
         <item>Red</item>
         <item>Violet</item>
+        <item>Green</item>
+        <item>Gold</item>
+        <item>Purple</item>
+        <item>Turquoise</item>
+        <item>Pink</item>
+        <item>White</item>
     </string-array>
     <string name="set_speed">GPS speed</string>
     <string name="on">On</string>
@@ -81,19 +87,37 @@
     <string name="veh_speed_can">Speed · car</string>
     <string name="veh_speed_gps">Speed · GPS</string>
     <string name="veh_outside">Outside</string>
-    <string name="veh_climate">Climate</string>
-    <string name="veh_rpm">Engine rpm</string>
-    <string name="veh_doors">Doors</string>
-    <string name="doors_closed">All closed</string>
-    <string name="door_fl">Driver</string>
-    <string name="door_fr">Passenger</string>
-    <string name="door_rl">Rear left</string>
-    <string name="door_rr">Rear right</string>
-    <string name="door_trunk">Boot</string>
-    <string name="door_hood">Bonnet</string>
-    <string name="climate_off">Off</string>
-    <string name="climate_fan">fan %1$d</string>
     <string name="can_missing">CANBus: this unit has no NWD CAN service</string>
     <string name="can_waiting">CANBus: connected, waiting for the car</string>
     <string name="can_live">CANBus: connected · %1$d messages</string>
+    <string name="veh_battery">Battery</string>
+    <string name="veh_coolant">Coolant</string>
+    <string name="veh_fuel">Fuel</string>
+    <string name="veh_tyres">Tyres</string>
+    <string name="veh_not_shared">Battery, coolant, fuel, tyres: not shared by the unit</string>
+    <string name="open_driver">Driver\'s door open</string>
+    <string name="open_passenger">Passenger door open</string>
+    <string name="open_rear_left">Rear left door open</string>
+    <string name="open_rear_right">Rear right door open</string>
+    <string name="open_trunk">Boot open</string>
+    <string name="open_hood">Bonnet open</string>
+    <string name="set_top_widget">Upper widget</string>
+    <string name="set_bottom_widget">Lower widget</string>
+    <string name="widget_clock">Clock</string>
+    <string name="widget_gauge">Speedometer clock</string>
+    <string name="widget_fuel">Fuel</string>
+    <string name="widget_tyres">Tyre pressure</string>
+    <string name="widget_trip">Trip</string>
+    <string name="set_tank">Fuel tank</string>
+    <string name="tank_value">%1$s L</string>
+    <string name="fuel_litres">%1$s L of %2$s L</string>
+    <string name="fuel_left">fuel left</string>
+    <string name="fuel_unknown">The unit does not share the fuel level</string>
+    <string name="tyres_unit">bar</string>
+    <string name="tyres_unknown">The unit does not share tyre pressures</string>
+    <string name="trip_distance">km</string>
+    <string name="trip_time">time</string>
+    <string name="trip_average">km/h avg</string>
+    <string name="trip_waiting">Starts when the car moves</string>
+    <string name="trip_units">Since setting off</string>
 </resources>

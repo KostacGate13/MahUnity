@@ -12,12 +12,11 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.Parcel;
-import android.os.SystemClock;
 
 /**
  * Car data from the head unit's CANBus decoder, read the way the unit's own apps read it: NWD's CAN service
- * (com.nwd.can.setting) over Binder, and the outside temperature it broadcasts for the status bar. Read only:
- * nothing is ever sent towards the car. On units without that service nothing happens.
+ * (com.nwd.can.setting) over Binder for speed and doors, and the outside temperature it broadcasts for the
+ * status bar. Read only: nothing is ever sent towards the car. On units without that service nothing happens.
  *
  * The Binder calls mirror NWD's ICanRemote4OuterFeature AIDL; packets start with 0x6E, then a data type,
  * a length, and the payload from byte 3 (see the decoders below).
@@ -40,32 +39,33 @@ final class CanBus {
 
     // ICanRemote4OuterFeature transaction codes.
     private static final int INIT_SDK = 2;
-    private static final int ADD_AIR = 9, REMOVE_AIR = 10, ADD_DOOR = 11, REMOVE_DOOR = 12;
-    private static final int ADD_RADAR = 15, REMOVE_RADAR = 16, ADD_CAR_INFO = 17, REMOVE_CAR_INFO = 18;
-    private static final int[] ADD = {ADD_AIR, ADD_DOOR, ADD_RADAR, ADD_CAR_INFO};
-    private static final int[] REMOVE = {REMOVE_AIR, REMOVE_DOOR, REMOVE_RADAR, REMOVE_CAR_INFO};
+    private static final int ADD_DOOR = 11, REMOVE_DOOR = 12, ADD_CAR_INFO = 17, REMOVE_CAR_INFO = 18;
+    private static final int[] ADD = {ADD_DOOR, ADD_CAR_INFO};
+    private static final int[] REMOVE = {REMOVE_DOOR, REMOVE_CAR_INFO};
 
     // Packet data types.
     private static final byte HEAD = 0x6E;
-    private static final int AIR = 1, CAR_INFO = 2, DOOR = 3, RADAR = 4;
+    private static final int CAR_INFO = 2, DOOR = 3;
     private static final int OFFSET = 3;
 
     /** Door bits, as the decoder sends them. */
     static final int FRONT_LEFT = 1 << 7, FRONT_RIGHT = 1 << 6, REAR_LEFT = 1 << 5, REAR_RIGHT = 1 << 4,
             TRUNK = 1 << 3, HOOD = 1 << 2;
 
-    // The latest values; -1 or null while unknown.
+    // The latest values; negative or null while unknown.
     int state = MISSING;
     int packets;
-    int speed = -1, rpm = -1;
-    long speedAt;
+    int speed = -1;
     int doors = -1;
-    /** Parking sensor levels, rear left to right then front left to right; 0 is clear. Null until reported. */
-    int[] radar;
-    boolean acOn;
-    String acLeft, acRight;
-    int fan = -1;
     String outside;
+    /** Litres in the tank, from decoders that report it in car info (GM's Raise decoder does not). */
+    float fuel = -1;
+    /**
+     * Not shared by NWD's service with other apps (it shows them only in its own trip and TPMS screens); kept
+     * for another source, such as an OBD adapter.
+     */
+    float battery = -1, coolant = Float.NaN;
+    float[] tyres;
 
     private final Context context;
     private final Listener listener;
@@ -125,23 +125,27 @@ final class CanBus {
         this.listener = listener;
     }
 
-    /** Listens for the outside temperature for as long as Home lives: it is only sent when it changes. */
-    void listen() {
-        if (receiving) return;
-        IntentFilter filter = new IntentFilter(ACTION_STATUS_TEXT);
-        if (Build.VERSION.SDK_INT >= 33) context.registerReceiver(temperature, filter, Context.RECEIVER_EXPORTED);
-        else context.registerReceiver(temperature, filter);
-        receiving = true;
+    /**
+     * Connects and listens for as long as Home lives, on screen or not: doors and the outside temperature are
+     * only sent when they change, and the trip counts the car's speed while another app is in front.
+     */
+    void start() {
+        if (!receiving) {
+            IntentFilter filter = new IntentFilter(ACTION_STATUS_TEXT);
+            if (Build.VERSION.SDK_INT >= 33) context.registerReceiver(temperature, filter, Context.RECEIVER_EXPORTED);
+            else context.registerReceiver(temperature, filter);
+            receiving = true;
+        }
+        bind();
     }
 
     void close() {
-        stop();
+        unbind();
         if (receiving) context.unregisterReceiver(temperature);
         receiving = false;
     }
 
-    /** Connects while Home is on screen. */
-    void start() {
+    private void bind() {
         if (bound) return;
         try {
             bound = context.bindService(new Intent(ACTION_SERVICE).setComponent(SERVICE), connection,
@@ -153,7 +157,7 @@ final class CanBus {
         listener.onCanChanged();
     }
 
-    void stop() {
+    private void unbind() {
         if (!bound) return;
         if (remote != null) {
             for (int code : REMOVE) call(code);
@@ -163,9 +167,9 @@ final class CanBus {
         remote = null;
     }
 
-    /** Speed from the car, if it reported one in the last few seconds. */
+    /** Speed from the car. NWD's service only sends it when it changes, so the last value stands until then. */
     boolean hasSpeed() {
-        return speed >= 0 && SystemClock.elapsedRealtime() - speedAt < 3000;
+        return state == CONNECTED && speed >= 0;
     }
 
     /** A callback registration (no arguments but our callback) or initSdkCfg (the arguments given). */
@@ -198,30 +202,17 @@ final class CanBus {
         if (p == null || p.length < OFFSET + 1 || p[0] != HEAD) return;
         packets++;
         switch (p[1]) {
-            case AIR:
-                if (p.length < OFFSET + 9) return;
-                acOn = (p[OFFSET] & 0x80) != 0;
-                fan = p[OFFSET + 2] & 0x0F;
-                boolean fahrenheit = ((p[OFFSET + 3] >> 2) & 1) == 1;
-                acLeft = temperature(p[OFFSET + 7], fahrenheit);
-                acRight = temperature(p[OFFSET + 8], fahrenheit);
-                break;
             case CAR_INFO:
-                if (p.length < OFFSET + 4) return;
+                if (p.length < OFFSET + 2) return;
                 int s = u16(p, OFFSET);
                 speed = s == 0xFFFF ? -1 : s;
-                speedAt = SystemClock.elapsedRealtime();
-                int r = u16(p, OFFSET + 2);
-                rpm = r == 0xFFFF ? -1 : r;
+                if (p.length > OFFSET + 14) {
+                    int f = p[OFFSET + 14] & 0xFF;
+                    fuel = f == 0 || f == 0xFF ? -1 : f;
+                }
                 break;
             case DOOR:
                 doors = p[OFFSET] & (FRONT_LEFT | FRONT_RIGHT | REAR_LEFT | REAR_RIGHT | TRUNK | HOOD);
-                break;
-            case RADAR:
-                if (p.length < OFFSET + 8) return;
-                int[] levels = new int[8];
-                for (int i = 0; i < 8; i++) levels[i] = Math.max(0, p[OFFSET + i]);
-                radar = levels;
                 break;
             default:
                 return;
@@ -233,13 +224,4 @@ final class CanBus {
         return ((p[at] & 0xFF) << 8) | (p[at + 1] & 0xFF);
     }
 
-    /** NWD's encoding: half degrees, 0 for LO, 0xFF for HI, 0xFE for no reading. */
-    private static String temperature(byte v, boolean fahrenheit) {
-        if (v == 0) return "LO";
-        if (v == (byte) 0xFF) return "HI";
-        if (v == (byte) 0xFE) return null;
-        float t = (v & 0xFF) / 2f;
-        String n = t == Math.floor(t) ? String.valueOf((int) t) : String.valueOf(t);
-        return n + (fahrenheit ? "°F" : "°C");
-    }
 }

@@ -13,14 +13,14 @@ import android.view.ViewGroup;
 
 /**
  * Home, laid out in proportions of the screen rather than fixed sizes, so the same build fills a 1024x600
- * and a 1280x720 head unit alike. Landscape: the clock and media card on the left, a 3x2 grid of tiles on
+ * and a 1280x720 head unit alike. Landscape: the two widgets (clock, media card) on the left, a 3x2 grid of tiles on
  * the right. Portrait: the same stacked, tiles 2x3. Also paints the background and the ambient light strip.
  */
 final class HomeLayout extends ViewGroup {
     final TopBar top;
     final ChromeButton gear;
-    final ClockView clock;
-    final MediaCard media;
+    /** The widgets picked in Settings: the clock or the speedometer-clock, and the media card or another. */
+    final View upper, lower;
     final TileView[] tiles;
 
     private final Rect topRect = new Rect(), gearRect = new Rect(), clockRect = new Rect(), mediaRect = new Rect();
@@ -33,20 +33,20 @@ final class HomeLayout extends ViewGroup {
     private float dividerX = -1, dividerTop, dividerBottom, stripY, stripH;
     private int stripColor;
 
-    HomeLayout(Context context, TopBar top, ChromeButton gear, ClockView clock, MediaCard media, TileView[] tiles) {
+    HomeLayout(Context context, TopBar top, ChromeButton gear, View upper, View lower, TileView[] tiles) {
         super(context);
         this.top = top;
         this.gear = gear;
-        this.clock = clock;
-        this.media = media;
+        this.upper = upper;
+        this.lower = lower;
         this.tiles = tiles;
         tileRects = new Rect[tiles.length];
         for (int i = 0; i < tiles.length; i++) tileRects[i] = new Rect();
         setWillNotDraw(false);
         addView(top);
         addView(gear);
-        addView(clock);
-        addView(media);
+        addView(upper);
+        addView(lower);
         for (TileView t : tiles) addView(t);
     }
 
@@ -55,8 +55,8 @@ final class HomeLayout extends ViewGroup {
         place(w, h);
         measure(top, topRect);
         measure(gear, gearRect);
-        measure(clock, clockRect);
-        measure(media, mediaRect);
+        measure(upper, clockRect);
+        measure(lower, mediaRect);
         for (int i = 0; i < tiles.length; i++) measure(tiles[i], tileRects[i]);
         setMeasuredDimension(w, h);
     }
@@ -113,8 +113,8 @@ final class HomeLayout extends ViewGroup {
     @Override protected void onLayout(boolean changed, int l, int t, int r, int b) {
         layout(top, topRect);
         layout(gear, gearRect);
-        layout(clock, clockRect);
-        layout(media, mediaRect);
+        layout(upper, clockRect);
+        layout(lower, mediaRect);
         for (int i = 0; i < tiles.length; i++) layout(tiles[i], tileRects[i]);
     }
 

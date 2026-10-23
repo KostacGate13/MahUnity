@@ -17,6 +17,10 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
+import android.text.InputType;
+import android.text.SpannableString;
+import android.text.Spanned;
+import android.text.style.ForegroundColorSpan;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.animation.DecelerateInterpolator;
@@ -26,7 +30,9 @@ import android.widget.FrameLayout;
 import android.widget.ScrollView;
 import android.widget.Toast;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Home: the cockpit with the car (or, with the car switched off, the classic tiles), with all apps and
@@ -40,6 +46,23 @@ public final class HomeActivity extends Activity
     private static final String PREF_NAME = "name";
     private static final String PREF_CAR = "car";
     private static final String PREF_HOLOGRAM = "hologram";
+    private static final String PREF_TOP_WIDGET = "top_widget";
+    private static final String PREF_BOTTOM_WIDGET = "bottom_widget";
+    private static final String PREF_TANK = "tank";
+    /** Upper widget choices, and lower ones, in the order Settings lists them. */
+    private static final int TOP_CLOCK = 0, TOP_GAUGE = 1;
+    private static final int BOTTOM_MUSIC = 0, BOTTOM_FUEL = 1, BOTTOM_TYRES = 2, BOTTOM_TRIP = 3;
+    private static final int[] TOP_NAMES = {R.string.widget_clock, R.string.widget_gauge};
+    private static final int[] BOTTOM_NAMES = {R.string.slot_music, R.string.widget_fuel, R.string.widget_tyres,
+            R.string.widget_trip};
+    /** The Corsa E's tank, in litres. */
+    private static final float DEFAULT_TANK = 45f;
+    /** Door bits in the order they are named and turned to: the driver's door (left-hand drive) first. */
+    private static final int[] DOOR_BITS = {CanBus.FRONT_LEFT, CanBus.FRONT_RIGHT, CanBus.REAR_LEFT,
+            CanBus.REAR_RIGHT, CanBus.TRUNK, CanBus.HOOD};
+    private static final String[] DOOR_PARTS = {"door_left", "door_right", "door_left", "door_right", "trunk", "hood"};
+    private static final int[] DOOR_LABELS = {R.string.open_driver, R.string.open_passenger, R.string.open_rear_left,
+            R.string.open_rear_right, R.string.open_trunk, R.string.open_hood};
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final AppEntry[] slotApps = new AppEntry[Slots.COUNT];
@@ -51,6 +74,7 @@ public final class HomeActivity extends Activity
     private MediaWatcher media;
     private SpeedWatcher speed;
     private CanBus can;
+    private Trip trip;
 
     private ViewGroup home;
     /** Null on the classic Home. */
@@ -59,16 +83,47 @@ public final class HomeActivity extends Activity
     private VehicleView vehicle;
     private CarFrames carFrames;
     private TopBar top;
+    /** Whichever upper widget Settings picked; the other is null. */
     private ClockView clock;
+    private SpeedGauge gauge;
     private MediaCard card;
+    /** The lower widget, when it is not the media card; null otherwise. */
+    private FuelCard fuelCard;
+    private TyreCard tyreCard;
+    private TripCard tripCard;
+    private CarView car;
     private TileView[] tiles;
     private Panel appsPanel, settingsPanel, shown;
     private AppsGrid grid;
-    private SettingsRows.Row rowHome, rowCar, rowStyle, rowAmbient, rowSpeed, rowMedia, rowName;
+    private SettingsRows.Row rowHome, rowCar, rowStyle, rowTop, rowBottom, rowTank, rowAmbient, rowSpeed, rowMedia, rowName;
     private String[] headings;
     /** The last GPS reading, kept for when the car stops reporting its own speed. */
     private String gpsSpeed, gpsHeading;
+    /** The same in km/h, or -1: none, or GPS is off or Home is not showing. */
+    private float gpsKmh = -1;
+    private float gaugeShown = -2;
+    /** The door bits last shown on the car, or -1. */
+    private int doorsShown = -1;
+    private boolean resumed;
+    private int ticks;
     private int picking = -1;
+
+    /**
+     * Once a second for as long as Home lives: the trip counts the speed (the car's keeps coming with another app
+     * in front), and the trip card and gauge follow it while Home shows.
+     */
+    private final Runnable tick = new Runnable() {
+        @Override public void run() {
+            float kmh = currentSpeed();
+            if (kmh >= 0) trip.sample(kmh);
+            if (++ticks % 30 == 0) trip.save();
+            if (resumed) {
+                if (tripCard != null) tripCard.set(trip);
+                showGaugeSpeed();
+            }
+            handler.postDelayed(this, 1000);
+        }
+    };
 
     private final Runnable recheckMedia = new Runnable() {
         @Override public void run() {
@@ -84,6 +139,7 @@ public final class HomeActivity extends Activity
         media = new MediaWatcher(this, this);
         speed = new SpeedWatcher(this, this);
         can = new CanBus(this, this);
+        trip = new Trip(prefs);
         apps = new Apps(this, this);
 
         buildHome();
@@ -94,7 +150,8 @@ public final class HomeActivity extends Activity
         root.addView(appsPanel);
         root.addView(settingsPanel);
         setContentView(root);
-        can.listen();
+        can.start();
+        handler.post(tick);
     }
 
     private void buildHome() {
@@ -106,7 +163,9 @@ public final class HomeActivity extends Activity
                 showSettings();
             }
         });
-        clock = new ClockView(this);
+        if (prefs.getInt(PREF_TOP_WIDGET, TOP_CLOCK) == TOP_GAUGE) gauge = new SpeedGauge(this);
+        else clock = new ClockView(this);
+        View upper = clock != null ? clock : gauge;
 
         card = new MediaCard(this);
         card.setOnClickListener(new View.OnClickListener() {
@@ -133,10 +192,26 @@ public final class HomeActivity extends Activity
             }
         });
 
+        View lower = card;
+        switch (prefs.getInt(PREF_BOTTOM_WIDGET, BOTTOM_MUSIC)) {
+            case BOTTOM_FUEL:
+                lower = fuelCard = new FuelCard(this);
+                break;
+            case BOTTOM_TYRES:
+                lower = tyreCard = new TyreCard(this);
+                break;
+            case BOTTOM_TRIP:
+                lower = tripCard = new TripCard(this);
+                tripCard.set(trip);
+                break;
+            default:
+                break;
+        }
+
         tiles = new TileView[Slots.COUNT];
         if (!prefs.getBoolean(PREF_CAR, true)) {
             for (int i = 0; i < Slots.COUNT; i++) tiles[i] = tile(i);
-            home = new HomeLayout(this, top, gear, clock, card, tiles);
+            home = new HomeLayout(this, top, gear, upper, lower, tiles);
             return;
         }
 
@@ -146,7 +221,7 @@ public final class HomeActivity extends Activity
         tiles[Slots.RADIO] = sources[1];
         tiles[Slots.LINK] = sources[2];
         vehicle = new VehicleView(this);
-        CarView car = new CarView(this);
+        car = new CarView(this);
         if (!prefs.getBoolean(PREF_HOLOGRAM, false)) carFrames = CarFrames.open(this);
         car.setFrames(carFrames);
         DockBar dock = new DockBar(this);
@@ -169,7 +244,7 @@ public final class HomeActivity extends Activity
         slotItem(nav, Slots.NAV);
         slotItem(phone, Slots.PHONE);
         slotItem(all, Slots.APPS);
-        cockpit = new CockpitLayout(this, top, gear, clock, card, sources, vehicle, car, dock);
+        cockpit = new CockpitLayout(this, top, gear, upper, lower, card, sources, vehicle, car, dock);
         home = cockpit;
         showTab(CockpitLayout.HOME);
     }
@@ -292,13 +367,24 @@ public final class HomeActivity extends Activity
                 recreate();
             }
         });
+        rowTop = rows.add(R.string.set_top_widget, new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                pickWidget(R.string.set_top_widget, PREF_TOP_WIDGET, TOP_NAMES);
+            }
+        });
+        rowBottom = rows.add(R.string.set_bottom_widget, new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                pickWidget(R.string.set_bottom_widget, PREF_BOTTOM_WIDGET, BOTTOM_NAMES);
+            }
+        });
+        rowTank = rows.add(R.string.set_tank, new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                editTank();
+            }
+        });
         rowAmbient = rows.add(R.string.set_ambient, new View.OnClickListener() {
             @Override public void onClick(View v) {
-                int next = (accentIndex() + 1) % Chrome.ACCENTS.length;
-                prefs.edit().putInt(PREF_ACCENT, next).apply();
-                Chrome.accent = Chrome.ACCENTS[next];
-                Chrome.invalidateTree(getWindow().getDecorView());
-                refreshSettings();
+                pickAccent();
             }
         });
         rowSpeed = rows.add(R.string.set_speed, new View.OnClickListener() {
@@ -341,32 +427,43 @@ public final class HomeActivity extends Activity
 
     @Override protected void onResume() {
         super.onResume();
-        clock.start();
+        resumed = true;
+        if (clock != null) clock.start();
+        if (gauge != null) gauge.start();
         top.start();
         media.start();
-        can.start();
         if (prefs.getBoolean(PREF_SPEED, false) && speed.allowed()) {
             speed.start();
         } else {
-            clock.hideSpeed();
+            if (clock != null) clock.hideSpeed();
             gpsSpeed = null;
+            gpsKmh = -1;
             showVehicleSpeed();
         }
+        // Whatever changed while another app was in front.
+        onCanChanged();
+        if (tripCard != null) tripCard.set(trip);
         if (shown == settingsPanel) refreshSettings();
     }
 
     @Override protected void onPause() {
         super.onPause();
-        clock.stop();
+        resumed = false;
+        if (clock != null) clock.stop();
+        if (gauge != null) gauge.stop();
         top.stop();
         media.stop();
-        can.stop();
         speed.stop();
+        // GPS stops with Home off screen; the trip goes on with the car's speed alone.
+        gpsKmh = -1;
+        trip.save();
         handler.removeCallbacks(recheckMedia);
     }
 
     @Override protected void onDestroy() {
         super.onDestroy();
+        handler.removeCallbacks(tick);
+        trip.save();
         apps.close();
         can.close();
         if (carFrames != null) carFrames.close();
@@ -564,8 +661,9 @@ public final class HomeActivity extends Activity
         if (prefs.getBoolean(PREF_SPEED, false)) {
             prefs.edit().putBoolean(PREF_SPEED, false).apply();
             speed.stop();
-            clock.hideSpeed();
+            if (clock != null) clock.hideSpeed();
             gpsSpeed = null;
+            gpsKmh = -1;
             showVehicleSpeed();
         } else if (speed.allowed()) {
             enableSpeed();
@@ -593,27 +691,65 @@ public final class HomeActivity extends Activity
             heading = headings[Math.round(bearing / 45f) % headings.length];
         }
         String value = kmh < 0 ? "–" : String.valueOf(Math.round(kmh));
-        clock.setSpeed(value, heading);
+        if (clock != null) clock.setSpeed(value, heading);
         gpsSpeed = value;
         gpsHeading = heading;
+        gpsKmh = kmh;
         showVehicleSpeed();
     }
 
     // CANBus
 
     @Override public void onCanChanged() {
+        // Doors first and even off screen, so the car already faces an open door when Home comes back.
+        showDoors();
+        if (!resumed) return;
         top.setOutside(can.outside);
-        if (vehicle != null) {
-            vehicle.setCar(can);
-            showVehicleSpeed();
+        float tank = tank();
+        if (fuelCard != null) fuelCard.set(can.fuel, tank);
+        if (tyreCard != null) tyreCard.set(can.tyres);
+        if (vehicle != null) vehicle.setCar(can, tank);
+        showVehicleSpeed();
+    }
+
+    /** Turns the car to the first open door (the driver's before the rest) and names every one open. */
+    private void showDoors() {
+        if (car == null || can.doors == doorsShown) return;
+        doorsShown = can.doors;
+        String part = null;
+        List<String> labels = new ArrayList<>();
+        for (int i = 0; i < DOOR_BITS.length; i++) {
+            if (can.doors < 0 || (can.doors & DOOR_BITS[i]) == 0) continue;
+            if (part == null) part = DOOR_PARTS[i];
+            labels.add(getString(DOOR_LABELS[i]));
         }
+        if (part == null) {
+            car.showClosed();
+            return;
+        }
+        StringBuilder text = new StringBuilder();
+        for (String l : labels) text.append(text.length() == 0 ? "" : "  ·  ").append(l);
+        car.showOpen(part, text.toString());
+    }
+
+    /** km/h: the car's own speed while it reports one; otherwise GPS, if that is on; otherwise -1. */
+    private float currentSpeed() {
+        return can.hasSpeed() ? can.speed : gpsKmh;
     }
 
     /** The car's own speed while it reports one; otherwise GPS, if that is switched on. */
     private void showVehicleSpeed() {
+        showGaugeSpeed();
         if (vehicle == null) return;
         if (can.hasSpeed()) vehicle.setSpeed(String.valueOf(can.speed), gpsHeading, true);
         else vehicle.setSpeed(gpsSpeed, gpsHeading, false);
+    }
+
+    private void showGaugeSpeed() {
+        float kmh = currentSpeed();
+        if (gauge == null || kmh == gaugeShown) return;
+        gaugeShown = kmh;
+        gauge.setSpeed(kmh);
     }
 
     // Settings
@@ -625,6 +761,9 @@ public final class HomeActivity extends Activity
         rowCar.setValue(getString(carOn ? R.string.on : R.string.off), carOn, 0);
         boolean hologram = prefs.getBoolean(PREF_HOLOGRAM, false);
         rowStyle.setValue(getString(hologram ? R.string.style_hologram : R.string.style_photo), false, 0);
+        rowTop.setValue(getString(TOP_NAMES[choice(PREF_TOP_WIDGET, TOP_NAMES)]), false, 0);
+        rowBottom.setValue(getString(BOTTOM_NAMES[choice(PREF_BOTTOM_WIDGET, BOTTOM_NAMES)]), false, 0);
+        rowTank.setValue(getString(R.string.tank_value, litres(tank())), false, 0);
         rowAmbient.setValue(getResources().getStringArray(R.array.ambient_names)[accentIndex()], false, Chrome.accent);
         boolean speedOn = prefs.getBoolean(PREF_SPEED, false);
         rowSpeed.setValue(getString(speedOn ? R.string.on : R.string.off), speedOn, 0);
@@ -651,6 +790,93 @@ public final class HomeActivity extends Activity
                         String name = field.getText().toString().trim();
                         prefs.edit().putString(PREF_NAME, name).apply();
                         top.setText(name);
+                        refreshSettings();
+                    }
+                })
+                .show();
+    }
+
+    /** One of a widget's choices, saved by its index; Home is rebuilt with it. */
+    private void pickWidget(int titleRes, final String pref, final int[] names) {
+        String[] items = new String[names.length];
+        for (int i = 0; i < names.length; i++) items[i] = getString(names[i]);
+        new AlertDialog.Builder(this)
+                .setTitle(titleRes)
+                .setSingleChoiceItems(items, choice(pref, names), new DialogInterface.OnClickListener() {
+                    @Override public void onClick(DialogInterface dialog, int which) {
+                        dialog.dismiss();
+                        if (which == choice(pref, names)) return;
+                        prefs.edit().putInt(pref, which).commit();
+                        recreate();
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    private int choice(String pref, int[] names) {
+        int i = prefs.getInt(pref, 0);
+        return i >= 0 && i < names.length ? i : 0;
+    }
+
+    /** The colours, each named beside a dot of itself; applied at once, no rebuild needed. */
+    private void pickAccent() {
+        String[] names = getResources().getStringArray(R.array.ambient_names);
+        CharSequence[] items = new CharSequence[Chrome.ACCENTS.length];
+        for (int i = 0; i < items.length; i++) {
+            SpannableString s = new SpannableString("\u25CF   " + names[i]);
+            s.setSpan(new ForegroundColorSpan(Chrome.ACCENTS[i]), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            items[i] = s;
+        }
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.set_ambient)
+                .setSingleChoiceItems(items, accentIndex(), new DialogInterface.OnClickListener() {
+                    @Override public void onClick(DialogInterface dialog, int which) {
+                        dialog.dismiss();
+                        prefs.edit().putInt(PREF_ACCENT, which).apply();
+                        Chrome.accent = Chrome.ACCENTS[which];
+                        Chrome.invalidateTree(getWindow().getDecorView());
+                        refreshSettings();
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    private float tank() {
+        float t = prefs.getFloat(PREF_TANK, DEFAULT_TANK);
+        return t > 0 ? t : DEFAULT_TANK;
+    }
+
+    private static String litres(float v) {
+        return v == Math.floor(v) ? String.valueOf((int) v) : String.format(Locale.getDefault(), "%.1f", v);
+    }
+
+    private void editTank() {
+        final EditText field = new EditText(this);
+        field.setSingleLine();
+        field.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        field.setText(litres(tank()));
+        field.setSelectAllOnFocus(true);
+        FrameLayout wrap = new FrameLayout(this);
+        int pad = Math.round(Chrome.unit(this) * 0.04f);
+        wrap.setPadding(pad, pad / 2, pad, 0);
+        wrap.addView(field);
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.set_tank)
+                .setView(wrap)
+                .setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener() {
+                    @Override public void onClick(DialogInterface dialog, int which) {
+                        float v;
+                        try {
+                            v = Float.parseFloat(field.getText().toString().trim().replace(',', '.'));
+                        } catch (NumberFormatException e) {
+                            return;
+                        }
+                        if (v < 5 || v > 200) return;
+                        prefs.edit().putFloat(PREF_TANK, v).apply();
+                        onCanChanged();
                         refreshSettings();
                     }
                 })

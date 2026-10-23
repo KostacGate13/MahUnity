@@ -1,0 +1,4 @@
+door_left 235 10
+door_right 125 10
+trunk 205 10
+hood 25 10

@@ -45,13 +45,19 @@
     <string name="set_home">Αρχική οθόνη</string>
     <string name="home_is_default">Προεπιλογή ✓</string>
     <string name="home_make_default">Ορισμός ως προεπιλογή</string>
-    <string name="set_ambient">Φωτισμός ατμόσφαιρας</string>
+    <string name="set_ambient">Χρώμα έμφασης</string>
     <string-array name="ambient_names">
         <item>Ασημί</item>
         <item>Παγωμένο μπλε</item>
         <item>Κεχριμπάρι</item>
         <item>Κόκκινο</item>
         <item>Βιολετί</item>
+        <item>Πράσινο</item>
+        <item>Χρυσό</item>
+        <item>Μωβ</item>
+        <item>Τιρκουάζ</item>
+        <item>Ροζ</item>
+        <item>Λευκό</item>
     </string-array>
     <string name="set_speed">Ταχύτητα GPS</string>
     <string name="on">Ναι</string>
@@ -79,19 +85,37 @@
     <string name="veh_speed_can">Ταχύτητα · αυτοκίνητο</string>
     <string name="veh_speed_gps">Ταχύτητα · GPS</string>
     <string name="veh_outside">Έξω</string>
-    <string name="veh_climate">Κλιματισμός</string>
-    <string name="veh_rpm">Στροφές</string>
-    <string name="veh_doors">Πόρτες</string>
-    <string name="doors_closed">Όλες κλειστές</string>
-    <string name="door_fl">Οδηγός</string>
-    <string name="door_fr">Συνοδηγός</string>
-    <string name="door_rl">Πίσω αριστερά</string>
-    <string name="door_rr">Πίσω δεξιά</string>
-    <string name="door_trunk">Πορτμπαγκάζ</string>
-    <string name="door_hood">Καπό</string>
-    <string name="climate_off">Κλειστός</string>
-    <string name="climate_fan">ανεμ. %1$d</string>
     <string name="can_missing">CANBus: η μονάδα δεν έχει την υπηρεσία CAN της NWD</string>
     <string name="can_waiting">CANBus: συνδέθηκε, αναμονή για το αυτοκίνητο</string>
     <string name="can_live">CANBus: συνδέθηκε · %1$d μηνύματα</string>
+    <string name="veh_battery">Μπαταρία</string>
+    <string name="veh_coolant">Ψυκτικό</string>
+    <string name="veh_fuel">Βενζίνη</string>
+    <string name="veh_tyres">Ελαστικά</string>
+    <string name="veh_not_shared">Μπαταρία, ψυκτικό, βενζίνη, ελαστικά: δεν τα δίνει η μονάδα</string>
+    <string name="open_driver">Πόρτα οδηγού ανοιχτή</string>
+    <string name="open_passenger">Πόρτα συνοδηγού ανοιχτή</string>
+    <string name="open_rear_left">Πίσω αριστερή πόρτα ανοιχτή</string>
+    <string name="open_rear_right">Πίσω δεξιά πόρτα ανοιχτή</string>
+    <string name="open_trunk">Πορτμπαγκάζ ανοιχτό</string>
+    <string name="open_hood">Καπό ανοιχτό</string>
+    <string name="set_top_widget">Επάνω widget</string>
+    <string name="set_bottom_widget">Κάτω widget</string>
+    <string name="widget_clock">Ρολόι</string>
+    <string name="widget_gauge">Ταχύμετρο-ρολόι</string>
+    <string name="widget_fuel">Βενζίνη</string>
+    <string name="widget_tyres">Πίεση ελαστικών</string>
+    <string name="widget_trip">Ταξίδι</string>
+    <string name="set_tank">Ρεζερβουάρ</string>
+    <string name="tank_value">%1$s L</string>
+    <string name="fuel_litres">%1$s L από %2$s L</string>
+    <string name="fuel_left">βενζίνη απομένει</string>
+    <string name="fuel_unknown">Η μονάδα δεν δίνει τη στάθμη βενζίνης</string>
+    <string name="tyres_unit">bar</string>
+    <string name="tyres_unknown">Η μονάδα δεν δίνει τις πιέσεις ελαστικών</string>
+    <string name="trip_distance">km</string>
+    <string name="trip_time">χρόνος</string>
+    <string name="trip_average">μ.ο. km/h</string>
+    <string name="trip_waiting">Ξεκινά όταν κινηθεί το αυτοκίνητο</string>
+    <string name="trip_units">Από την αναχώρηση</string>
 </resources>

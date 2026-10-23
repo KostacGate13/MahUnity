@@ -1,5 +1,7 @@
 package com.mahunity.launcher;
 
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
 import android.animation.ValueAnimator;
 import android.content.Context;
 import android.graphics.Bitmap;
@@ -9,14 +11,16 @@ import android.graphics.Paint;
 import android.graphics.RadialGradient;
 import android.graphics.RectF;
 import android.graphics.Shader;
+import android.text.TextPaint;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.animation.AccelerateDecelerateInterpolator;
 
 /**
  * The car on its turntable: the photos rendered from its scan (CarFrames), or, without them, polished lines
- * in perspective. It turns to the angle each tab asks for, and follows a finger dragged across it. Nothing
- * is drawn between movements, so it costs nothing while it stands still.
+ * in perspective. It turns to the angle each tab asks for, and follows a finger dragged across it. When the
+ * car reports a door, the boot or the bonnet open, it turns to face it, opens it in red and names it.
+ * Nothing is drawn between movements, so it costs nothing while it stands still.
  */
 final class CarView extends View {
     /** Angles in degrees: 0 shows the nose, 90 the right-hand side, 180 the tail. */
@@ -43,10 +47,21 @@ final class CarView extends View {
     private final Paint photo = new Paint(Paint.FILTER_BITMAP_FLAG);
     private final Matrix squash = new Matrix();
     private final RectF frameRect = new RectF();
+    private final RectF alertBox = new RectF();
+    private final TextPaint alert = new TextPaint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint alertFrame = new Paint(Paint.ANTI_ALIAS_FLAG);
     /** Null: the line drawing. */
     private CarFrames frames;
-    private ValueAnimator turn;
+    private ValueAnimator turn, opener;
     private float angle = FRONT;
+    /** The tab's angle, returned to once nothing is open. */
+    private float rest = FRONT;
+    /** The part shown open, or null; its frames, if this build has them. */
+    private String openName;
+    private CarFrames.Part openPart;
+    private float opened;
+    private boolean closing;
+    private String alertText = "";
     private float focal, cx, cy, stroke;
     private float lastX;
     private int floorColor;
@@ -69,6 +84,22 @@ final class CarView extends View {
         glow.setStrokeCap(Paint.Cap.ROUND);
         lamp.setStyle(Paint.Style.STROKE);
         lamp.setStrokeCap(Paint.Cap.ROUND);
+        alert.setTypeface(Chrome.MEDIUM);
+        alert.setColor(ALERT);
+        alert.setLetterSpacing(0.2f);
+        alert.setTextAlign(Paint.Align.CENTER);
+        alertFrame.setStyle(Paint.Style.STROKE);
+        alertFrame.setColor(Chrome.withAlpha(ALERT, 0xB0));
+    }
+
+    private static final int ALERT = 0xFFFF4B45;
+
+    /** Where each part is seen from when there are no frames for it (the same angles the frames use). */
+    private static int yawFor(String part) {
+        if ("door_left".equals(part)) return 235;
+        if ("door_right".equals(part)) return 125;
+        if ("trunk".equals(part)) return 205;
+        return 25;
     }
 
     private static void set(float[] f, int i, float x0, float y0, float z0, float x1, float y1, float z1) {
@@ -92,12 +123,93 @@ final class CarView extends View {
         }
     }
 
-    /** Turns smoothly to the angle, the short way round. */
+    /** The angle a tab asks for; turned to now, or once whatever is open has closed. */
     void turnTo(float target) {
+        rest = target;
+        if (openName == null) rotate(target, null);
+    }
+
+    /**
+     * A part reported open (door_left, door_right, trunk, hood) with its label: turn to it, then open it.
+     * Another part already open closes at once.
+     */
+    void showOpen(String part, String label) {
+        alertText = Text.upper(label);
+        placeAlert();
+        if (part.equals(openName)) {
+            // Opened again while it was closing: open back up from where it got to.
+            if (closing) animateOpen(1f, null);
+            closing = false;
+            invalidate();
+            return;
+        }
+        closing = false;
+        if (opener != null) opener.cancel();
+        opened = 0;
+        openName = part;
+        openPart = frames == null ? null : frames.part(part);
+        if (openPart != null) frames.want(openPart);
+        rotate(openPart != null ? openPart.yaw : yawFor(part), new Runnable() {
+            @Override public void run() {
+                animateOpen(1f, null);
+            }
+        });
+    }
+
+    /** Everything closed again: close the part, then turn back to the tab's angle. */
+    void showClosed() {
+        if (openName == null || closing) return;
+        closing = true;
+        animateOpen(0f, new Runnable() {
+            @Override public void run() {
+                closing = false;
+                openName = null;
+                openPart = null;
+                alertText = "";
+                rotate(rest, null);
+            }
+        });
+    }
+
+    private void animateOpen(float target, final Runnable then) {
+        if (opener != null) opener.cancel();
+        opener = ValueAnimator.ofFloat(opened, target);
+        opener.setDuration(Math.round(150 + 650 * Math.abs(target - opened)));
+        opener.setInterpolator(new AccelerateDecelerateInterpolator());
+        opener.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+            @Override public void onAnimationUpdate(ValueAnimator a) {
+                opened = (Float) a.getAnimatedValue();
+                invalidate();
+            }
+        });
+        if (then != null) opener.addListener(whenDone(then));
+        opener.start();
+    }
+
+    /** Runs the action when an animation ends by itself, not when it is cancelled. */
+    private static AnimatorListenerAdapter whenDone(final Runnable action) {
+        return new AnimatorListenerAdapter() {
+            private boolean cancelled;
+
+            @Override public void onAnimationCancel(Animator a) {
+                cancelled = true;
+            }
+
+            @Override public void onAnimationEnd(Animator a) {
+                if (!cancelled) action.run();
+            }
+        };
+    }
+
+    /** Turns smoothly to the angle, the short way round, then runs the action, if any. */
+    private void rotate(float target, Runnable then) {
         if (turn != null) turn.cancel();
         float from = angle;
         float delta = ((target - from) % 360 + 540) % 360 - 180;
-        if (Math.abs(delta) < 0.5f) return;
+        if (Math.abs(delta) < 0.5f) {
+            if (then != null) then.run();
+            return;
+        }
         turn = ValueAnimator.ofFloat(from, from + delta);
         turn.setDuration(Math.round(500 + Math.abs(delta) * 4));
         turn.setInterpolator(new AccelerateDecelerateInterpolator());
@@ -109,17 +221,21 @@ final class CarView extends View {
                 invalidate();
             }
         });
+        if (then != null) turn.addListener(whenDone(then));
         turn.start();
     }
 
     @Override public boolean onTouchEvent(MotionEvent e) {
         switch (e.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
+                // Held facing an open door until it closes.
+                if (openName != null) return true;
                 if (turn != null) turn.cancel();
                 lastX = e.getX();
                 getParent().requestDisallowInterceptTouchEvent(true);
                 return true;
             case MotionEvent.ACTION_MOVE:
+                if (openName != null) return true;
                 // The near side follows the finger.
                 float dx = e.getX() - lastX;
                 angle += dx * 0.35f;
@@ -157,7 +273,16 @@ final class CarView extends View {
         glow.setStrokeWidth(stroke * 5);
         lamp.setStrokeWidth(stroke * 1.8f);
         line.setShader(Chrome.metal(project(0, 0, 1.5f, 0)[1], project(0, 0, 0, 0)[1]));
+        alert.setTextSize(Math.min(w, h) * 0.045f);
+        alertFrame.setStrokeWidth(Math.max(1f, h * 0.003f));
+        placeAlert();
         floorColor = 0;
+    }
+
+    private void placeAlert() {
+        float tw = alert.measureText(alertText), th = alert.getTextSize();
+        float y = getHeight() * 0.1f;
+        alertBox.set(getWidth() / 2f - tw / 2 - th * 1.2f, y - th * 1.1f, getWidth() / 2f + tw / 2 + th * 1.2f, y + th * 0.9f);
     }
 
     /** Big enough that the side view fills most of the width, small enough that the turntable fits. */
@@ -187,8 +312,20 @@ final class CarView extends View {
         // The turntable: its ring stays put, its ticks turn with the car.
         drawSegments(c, ring, 1, 0, 0.6f, line, null);
         drawSegments(c, ticks, cos, sin, 0.6f, line, null);
+        if (!alertText.isEmpty()) {
+            float r = alertBox.height() / 2;
+            c.drawRoundRect(alertBox, r, r, alertFrame);
+            c.drawText(alertText, alertBox.centerX(), alertBox.centerY() + alert.getTextSize() * 0.36f, alert);
+        }
         if (frames != null) {
-            Bitmap b = frames.get(frames.index(angle));
+            Bitmap b;
+            // The opening frames once the car faces the part; the turntable otherwise.
+            float off = ((angle - (openPart != null ? openPart.yaw : 0)) % 360 + 540) % 360 - 180;
+            if (openPart != null && opened > 0 && Math.abs(off) < CarFrames.STEP / 2f) {
+                b = frames.get(openPart, Math.round(opened * openPart.frames));
+            } else {
+                b = frames.get(frames.index(angle));
+            }
             if (b != null) c.drawBitmap(b, null, frameRect, photo);
             return;
         }
