@@ -2,19 +2,21 @@ package com.mahunity.launcher;
 
 import android.animation.ValueAnimator;
 import android.content.Context;
+import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.RadialGradient;
+import android.graphics.RectF;
 import android.graphics.Shader;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.animation.AccelerateDecelerateInterpolator;
 
 /**
- * The car on its turntable, drawn as polished lines in perspective. It turns to the angle each tab asks
- * for, and follows a finger dragged across it. Nothing is drawn between movements, so it costs nothing
- * while it stands still.
+ * The car on its turntable: the photos rendered from its scan (CarFrames), or, without them, polished lines
+ * in perspective. It turns to the angle each tab asks for, and follows a finger dragged across it. Nothing
+ * is drawn between movements, so it costs nothing while it stands still.
  */
 final class CarView extends View {
     /** Angles in degrees: 0 shows the nose, 90 the right-hand side, 180 the tail. */
@@ -38,7 +40,11 @@ final class CarView extends View {
     private final Paint glow = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint lamp = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint floor = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint photo = new Paint(Paint.FILTER_BITMAP_FLAG);
     private final Matrix squash = new Matrix();
+    private final RectF frameRect = new RectF();
+    /** Null: the line drawing. */
+    private CarFrames frames;
     private ValueAnimator turn;
     private float angle = FRONT;
     private float focal, cx, cy, stroke;
@@ -74,6 +80,18 @@ final class CarView extends View {
         f[i * 6 + 5] = z1;
     }
 
+    void setFrames(CarFrames f) {
+        frames = f;
+        if (f != null) {
+            f.setOnReady(new Runnable() {
+                @Override public void run() {
+                    invalidate();
+                }
+            });
+            f.want(f.index(angle));
+        }
+    }
+
     /** Turns smoothly to the angle, the short way round. */
     void turnTo(float target) {
         if (turn != null) turn.cancel();
@@ -83,9 +101,11 @@ final class CarView extends View {
         turn = ValueAnimator.ofFloat(from, from + delta);
         turn.setDuration(Math.round(500 + Math.abs(delta) * 4));
         turn.setInterpolator(new AccelerateDecelerateInterpolator());
+        final int ahead = delta > 0 ? 1 : -1;
         turn.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
             @Override public void onAnimationUpdate(ValueAnimator a) {
                 angle = (Float) a.getAnimatedValue();
+                prefetch(ahead);
                 invalidate();
             }
         });
@@ -101,8 +121,10 @@ final class CarView extends View {
                 return true;
             case MotionEvent.ACTION_MOVE:
                 // The near side follows the finger.
-                angle += (e.getX() - lastX) * 0.35f;
+                float dx = e.getX() - lastX;
+                angle += dx * 0.35f;
                 lastX = e.getX();
+                prefetch(dx > 0 ? 1 : -1);
                 invalidate();
                 return true;
             default:
@@ -110,9 +132,24 @@ final class CarView extends View {
         }
     }
 
+    /** Asks for the next few frames in the direction of travel, so they are decoded before they are due. */
+    private void prefetch(int direction) {
+        if (frames == null) return;
+        int i = frames.index(angle);
+        for (int k = 1; k <= 3; k++) frames.want(i + direction * k);
+    }
+
     @Override protected void onSizeChanged(int w, int h, int oldw, int oldh) {
-        // Big enough that the side view fills most of the width, small enough that the turntable fits.
-        focal = Math.min(w * 0.86f * DISTANCE / (2 * CarModel.HALF_LENGTH), h * 0.8f * DISTANCE / 2.4f);
+        if (frames != null) {
+            // The photos were rendered for a frame of their own size with this same camera: fit the frame,
+            // and draw the turntable at the same scale so the car stands on it.
+            float scale = Math.min(w / (float) frames.width, h / (float) frames.height);
+            focal = focal(frames.width, frames.height) * scale;
+            frameRect.set(w / 2f - frames.width * scale / 2, h / 2f - frames.height * scale / 2,
+                    w / 2f + frames.width * scale / 2, h / 2f + frames.height * scale / 2);
+        } else {
+            focal = focal(w, h);
+        }
         cx = w / 2f;
         cy = h * 0.5f;
         stroke = Math.max(1f, Math.min(w, h) * 0.0032f);
@@ -121,6 +158,11 @@ final class CarView extends View {
         lamp.setStrokeWidth(stroke * 1.8f);
         line.setShader(Chrome.metal(project(0, 0, 1.5f, 0)[1], project(0, 0, 0, 0)[1]));
         floorColor = 0;
+    }
+
+    /** Big enough that the side view fills most of the width, small enough that the turntable fits. */
+    private static float focal(float w, float h) {
+        return Math.min(w * 0.86f * DISTANCE / (2 * CarModel.HALF_LENGTH), h * 0.8f * DISTANCE / 2.4f);
     }
 
     @Override protected void onDraw(Canvas c) {
@@ -145,6 +187,11 @@ final class CarView extends View {
         // The turntable: its ring stays put, its ticks turn with the car.
         drawSegments(c, ring, 1, 0, 0.6f, line, null);
         drawSegments(c, ticks, cos, sin, 0.6f, line, null);
+        if (frames != null) {
+            Bitmap b = frames.get(frames.index(angle));
+            if (b != null) c.drawBitmap(b, null, frameRect, photo);
+            return;
+        }
         glow.setColor(Chrome.withAlpha(Chrome.accent, 0x16));
         drawSegments(c, model.body, cos, sin, 1f, line, glow);
         lamp.setColor(Chrome.accent);

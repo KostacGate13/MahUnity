@@ -75,4 +75,7 @@
     <string name="set_car">Show the car</string>
     <string name="can_pending">CANBus: not connected yet</string>
     <string name="speed_off_hint">Switch on: Settings ▸ GPS speed</string>
+    <string name="set_car_style">Car style</string>
+    <string name="style_photo">Photo</string>
+    <string name="style_hologram">Hologram</string>
 </resources>

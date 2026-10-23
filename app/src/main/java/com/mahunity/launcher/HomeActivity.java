@@ -38,6 +38,7 @@ public final class HomeActivity extends Activity implements Apps.Listener, Media
     private static final String PREF_SPEED = "speed";
     private static final String PREF_NAME = "name";
     private static final String PREF_CAR = "car";
+    private static final String PREF_HOLOGRAM = "hologram";
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final AppEntry[] slotApps = new AppEntry[Slots.COUNT];
@@ -54,13 +55,14 @@ public final class HomeActivity extends Activity implements Apps.Listener, Media
     private CockpitLayout cockpit;
     private DockBar.Item[] tabItems;
     private VehicleView vehicle;
+    private CarFrames carFrames;
     private TopBar top;
     private ClockView clock;
     private MediaCard card;
     private TileView[] tiles;
     private Panel appsPanel, settingsPanel, shown;
     private AppsGrid grid;
-    private SettingsRows.Row rowHome, rowCar, rowAmbient, rowSpeed, rowMedia, rowName;
+    private SettingsRows.Row rowHome, rowCar, rowStyle, rowAmbient, rowSpeed, rowMedia, rowName;
     private String[] headings;
     private int picking = -1;
 
@@ -139,6 +141,8 @@ public final class HomeActivity extends Activity implements Apps.Listener, Media
         tiles[Slots.LINK] = sources[2];
         vehicle = new VehicleView(this);
         CarView car = new CarView(this);
+        if (!prefs.getBoolean(PREF_HOLOGRAM, false)) carFrames = CarFrames.open(this);
+        car.setFrames(carFrames);
         DockBar dock = new DockBar(this);
         DockBar.Item homeTab = dock.add(R.drawable.ic_home, R.string.tab_home);
         DockBar.Item nav = dock.add(R.drawable.ic_nav, R.string.slot_nav);
@@ -276,6 +280,12 @@ public final class HomeActivity extends Activity implements Apps.Listener, Media
                 recreate();
             }
         });
+        rowStyle = rows.add(R.string.set_car_style, new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                prefs.edit().putBoolean(PREF_HOLOGRAM, !prefs.getBoolean(PREF_HOLOGRAM, false)).commit();
+                recreate();
+            }
+        });
         rowAmbient = rows.add(R.string.set_ambient, new View.OnClickListener() {
             @Override public void onClick(View v) {
                 int next = (accentIndex() + 1) % Chrome.ACCENTS.length;
@@ -349,6 +359,7 @@ public final class HomeActivity extends Activity implements Apps.Listener, Media
     @Override protected void onDestroy() {
         super.onDestroy();
         apps.close();
+        if (carFrames != null) carFrames.close();
     }
 
     @Override protected void onNewIntent(Intent intent) {
@@ -582,6 +593,8 @@ public final class HomeActivity extends Activity implements Apps.Listener, Media
         rowHome.setValue(getString(isDefault ? R.string.home_is_default : R.string.home_make_default), !isDefault, 0);
         boolean carOn = prefs.getBoolean(PREF_CAR, true);
         rowCar.setValue(getString(carOn ? R.string.on : R.string.off), carOn, 0);
+        boolean hologram = prefs.getBoolean(PREF_HOLOGRAM, false);
+        rowStyle.setValue(getString(hologram ? R.string.style_hologram : R.string.style_photo), false, 0);
         rowAmbient.setValue(getResources().getStringArray(R.array.ambient_names)[accentIndex()], false, Chrome.accent);
         boolean speedOn = prefs.getBoolean(PREF_SPEED, false);
         rowSpeed.setValue(getString(speedOn ? R.string.on : R.string.off), speedOn, 0);
