@@ -58,6 +58,27 @@ final class NwdLog {
         return context.checkPermission(PERMISSION, Process.myPid(), Process.myUid()) == PackageManager.PERMISSION_GRANTED;
     }
 
+    private Boolean gmRaise;
+
+    /**
+     * Whether Car Info decodes this car with GM's Raise decoder (the Corsa's), whose frames these are; read from
+     * the car type Car Info keeps in system settings. Unknown counts as yes: the frames are checked anyway.
+     */
+    boolean gmRaise() {
+        if (gmRaise == null) {
+            String manager = "";
+            try {
+                String json = android.provider.Settings.System.getString(context.getContentResolver(),
+                        "can_config_app_cartype_json");
+                if (json != null) manager = new org.json.JSONObject(json).optString("canManagerClassName", "");
+            } catch (Exception e) {
+                // Unreadable: unknown.
+            }
+            gmRaise = manager.isEmpty() || manager.contains(".gm.raise.");
+        }
+        return gmRaise;
+    }
+
     boolean reading() {
         return logcat != null;
     }

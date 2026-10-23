@@ -80,13 +80,14 @@ final class TileView extends View {
         lit.setStrokeWidth(stroke * 2f);
 
         float pad = u * 0.032f;
-        // Type and icon from the screen, trimmed only when a tile is too small to hold them.
-        float scale = Math.min(1f, Math.min(w, h) / (u * 0.3f));
-        int size = Math.round(u * Chrome.ICON * scale);
+        // Type and icon from the screen, trimmed only when a tile is too small to hold them: by its height for a
+        // wide row, by its short side otherwise.
+        boolean wide = w > h * 1.3f;
+        float scale = Math.min(1f, wide ? h / (u * 0.11f) : Math.min(w, h) / (u * 0.3f));
+        int size = Math.round(Math.min(u * Chrome.ICON * scale, h * 0.6f));
         labelSize = u * Chrome.TYPE_HEADLINE * scale;
         label.setTextSize(labelSize);
         note.setTextSize(u * Chrome.TYPE_CAPTION * 1.15f * scale);
-        boolean wide = w > h * 1.3f;
         if (wide) {
             iconX = pad;
             iconY = (h - size) / 2f;

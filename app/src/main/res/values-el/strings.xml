@@ -4,7 +4,7 @@
     <string name="slot_music">Μουσική</string>
     <string name="slot_radio">Ραδιόφωνο</string>
     <string name="slot_phone">Τηλέφωνο</string>
-    <string name="slot_link">CarPlay · Auto</string>
+    <string name="slot_link">CarPlay</string>
     <string name="slot_apps">Εφαρμογές</string>
     <string name="hold_to_choose">Κρατήστε πατημένο για επιλογή</string>
     <plurals name="apps_count">
@@ -77,14 +77,11 @@
     <string name="tab_home">Αρχική</string>
     <string name="tab_vehicle">Όχημα</string>
     <string name="set_car">Εμφάνιση αυτοκινήτου</string>
-    <string name="speed_off_hint">Ενεργοποίηση: Ρυθμίσεις ▸ Ταχύτητα GPS</string>
     <string name="set_car_style">Στυλ αυτοκινήτου</string>
     <string name="style_photo">Φωτογραφία</string>
     <string name="style_hologram">Ολόγραμμα</string>
     <string name="unknown">—</string>
-    <string name="veh_speed_can">Ταχύτητα · αυτοκίνητο</string>
-    <string name="veh_speed_gps">Ταχύτητα · GPS</string>
-    <string name="veh_outside">Έξω</string>
+    <string name="veh_outside">Θερμοκρασία</string>
     <string name="can_missing">CANBus: η μονάδα δεν έχει την υπηρεσία CAN της NWD</string>
     <string name="can_waiting">CANBus: συνδέθηκε, αναμονή για το αυτοκίνητο</string>
     <string name="can_live">CANBus: συνδέθηκε · %1$d μηνύματα</string>
@@ -123,5 +120,11 @@
     <string name="header_sources">Πηγές ήχου</string>
     <string name="set_ui_style">Στυλ εμφάνισης</string>
     <string name="ui_glass">Γυαλί</string>
-    <string name="ui_simple">Απλό</string>
+    <string name="ui_classic">Κλασικό</string>
+    <string name="set_shade">Φόντο</string>
+    <string-array name="shade_names">
+        <item>Μαύρο</item>
+        <item>Σκούρο γκρι</item>
+        <item>Ανοιχτό γκρι</item>
+    </string-array>
 </resources>

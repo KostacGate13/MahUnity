@@ -6,7 +6,7 @@
     <string name="slot_music">Music</string>
     <string name="slot_radio">Radio</string>
     <string name="slot_phone">Phone</string>
-    <string name="slot_link">CarPlay · Auto</string>
+    <string name="slot_link">CarPlay</string>
     <string name="slot_apps">Apps</string>
     <string name="hold_to_choose">Hold to choose an app</string>
     <plurals name="apps_count">
@@ -79,14 +79,11 @@
     <string name="tab_home">Home</string>
     <string name="tab_vehicle">Vehicle</string>
     <string name="set_car">Show the car</string>
-    <string name="speed_off_hint">Switch on: Settings ▸ GPS speed</string>
     <string name="set_car_style">Car style</string>
     <string name="style_photo">Photo</string>
     <string name="style_hologram">Hologram</string>
     <string name="unknown">—</string>
-    <string name="veh_speed_can">Speed · car</string>
-    <string name="veh_speed_gps">Speed · GPS</string>
-    <string name="veh_outside">Outside</string>
+    <string name="veh_outside">Temperature</string>
     <string name="can_missing">CANBus: this unit has no NWD CAN service</string>
     <string name="can_waiting">CANBus: connected, waiting for the car</string>
     <string name="can_live">CANBus: connected · %1$d messages</string>
@@ -125,5 +122,11 @@
     <string name="header_sources">Audio sources</string>
     <string name="set_ui_style">Look</string>
     <string name="ui_glass">Glass</string>
-    <string name="ui_simple">Simple</string>
+    <string name="ui_classic">Classic</string>
+    <string name="set_shade">Background</string>
+    <string-array name="shade_names">
+        <item>Black</item>
+        <item>Dark grey</item>
+        <item>Light grey</item>
+    </string-array>
 </resources>

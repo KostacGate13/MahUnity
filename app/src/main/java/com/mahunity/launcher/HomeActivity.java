@@ -49,7 +49,8 @@ public final class HomeActivity extends Activity
     private static final String PREF_NAME = "name";
     private static final String PREF_CAR = "car";
     private static final String PREF_HOLOGRAM = "hologram";
-    private static final String PREF_UI_STYLE = "ui_style";
+    private static final String PREF_LOOK = "look";
+    private static final String PREF_SHADE = "shade";
     private static final String PREF_TOP_WIDGET = "top_widget";
     private static final String PREF_BOTTOM_WIDGET = "bottom_widget";
     private static final String PREF_TANK = "tank";
@@ -100,12 +101,10 @@ public final class HomeActivity extends Activity
     private TileView[] tiles;
     private Panel appsPanel, settingsPanel, shown;
     private AppsGrid grid;
-    private SettingsRows.Row rowHome, rowCar, rowUiStyle, rowStyle, rowTop, rowBottom, rowTank, rowAmbient, rowSpeed, rowMedia,
+    private SettingsRows.Row rowHome, rowCar, rowUiStyle, rowShade, rowStyle, rowTop, rowBottom, rowTank, rowAmbient, rowSpeed, rowMedia,
             rowCarData, rowName;
     private String[] headings;
-    /** The last GPS reading, kept for when the car stops reporting its own speed. */
-    private String gpsSpeed, gpsHeading;
-    /** The same in km/h, or -1: none, or GPS is off or Home is not showing. */
+    /** The last GPS speed in km/h, or -1: none, or GPS is off or Home is not showing. */
     private float gpsKmh = -1;
     private float gaugeShown = -2;
     /** The door bits last shown on the car, or -1. */
@@ -147,7 +146,8 @@ public final class HomeActivity extends Activity
         super.onCreate(state);
         prefs = getSharedPreferences("home", MODE_PRIVATE);
         Chrome.accent = Chrome.ACCENTS[accentIndex()];
-        Chrome.style = prefs.getInt(PREF_UI_STYLE, Chrome.GLASS) == Chrome.SIMPLE ? Chrome.SIMPLE : Chrome.GLASS;
+        Chrome.style = prefs.getInt(PREF_LOOK, Chrome.CLASSIC) == Chrome.GLASS ? Chrome.GLASS : Chrome.CLASSIC;
+        Chrome.shade = Math.max(0, Math.min(2, prefs.getInt(PREF_SHADE, 0)));
         slots = new Slots(this, prefs);
         media = new MediaWatcher(this, this);
         speed = new SpeedWatcher(this, this);
@@ -388,7 +388,13 @@ public final class HomeActivity extends Activity
         });
         rowUiStyle = rows.add(R.string.set_ui_style, new View.OnClickListener() {
             @Override public void onClick(View v) {
-                prefs.edit().putInt(PREF_UI_STYLE, Chrome.style == Chrome.GLASS ? Chrome.SIMPLE : Chrome.GLASS).commit();
+                prefs.edit().putInt(PREF_LOOK, Chrome.style == Chrome.GLASS ? Chrome.CLASSIC : Chrome.GLASS).commit();
+                recreate();
+            }
+        });
+        rowShade = rows.add(R.string.set_shade, new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                prefs.edit().putInt(PREF_SHADE, (Chrome.shade + 1) % 3).commit();
                 recreate();
             }
         });
@@ -476,7 +482,6 @@ public final class HomeActivity extends Activity
             speed.start();
         } else {
             if (clock != null) clock.hideSpeed();
-            gpsSpeed = null;
             gpsKmh = -1;
             showVehicleSpeed();
         }
@@ -734,7 +739,6 @@ public final class HomeActivity extends Activity
             prefs.edit().putBoolean(PREF_SPEED, false).apply();
             speed.stop();
             if (clock != null) clock.hideSpeed();
-            gpsSpeed = null;
             gpsKmh = -1;
             showVehicleSpeed();
         } else if (speed.allowed()) {
@@ -764,8 +768,6 @@ public final class HomeActivity extends Activity
         }
         String value = kmh < 0 ? "–" : String.valueOf(Math.round(kmh));
         if (clock != null) clock.setSpeed(value, heading);
-        gpsSpeed = value;
-        gpsHeading = heading;
         gpsKmh = kmh;
         showVehicleSpeed();
     }
@@ -818,12 +820,9 @@ public final class HomeActivity extends Activity
         return can.hasSpeed() ? can.speed : gpsKmh;
     }
 
-    /** The car's own speed while it reports one; otherwise GPS, if that is switched on. */
+    /** The speed on the gauge: the car's own while it reports one, otherwise GPS, if that is switched on. */
     private void showVehicleSpeed() {
         showGaugeSpeed();
-        if (vehicle == null) return;
-        if (can.hasSpeed()) vehicle.setSpeed(String.valueOf(can.speed), gpsHeading, true);
-        else vehicle.setSpeed(gpsSpeed, gpsHeading, false);
     }
 
     private void showGaugeSpeed() {
@@ -840,7 +839,8 @@ public final class HomeActivity extends Activity
         rowHome.setValue(getString(isDefault ? R.string.home_is_default : R.string.home_make_default), !isDefault, 0);
         boolean carOn = prefs.getBoolean(PREF_CAR, true);
         rowCar.setValue(getString(carOn ? R.string.on : R.string.off), carOn, 0);
-        rowUiStyle.setValue(getString(Chrome.style == Chrome.GLASS ? R.string.ui_glass : R.string.ui_simple), false, 0);
+        rowUiStyle.setValue(getString(Chrome.style == Chrome.GLASS ? R.string.ui_glass : R.string.ui_classic), false, 0);
+        rowShade.setValue(getResources().getStringArray(R.array.shade_names)[Chrome.shade], false, 0);
         boolean hologram = prefs.getBoolean(PREF_HOLOGRAM, false);
         rowStyle.setValue(getString(hologram ? R.string.style_hologram : R.string.style_photo), false, 0);
         rowTop.setValue(getString(TOP_NAMES[choice(PREF_TOP_WIDGET, TOP_NAMES)]), false, 0);

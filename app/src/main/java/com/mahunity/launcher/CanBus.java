@@ -61,8 +61,9 @@ final class CanBus {
     String outside;
     /** Litres in the tank: from car info on decoders that fill it in, else from Car Info's log. */
     float fuel = -1;
-    /** Volts and °C, from Car Info's log. */
+    /** Volts and °C, from Car Info's log (the battery also, in whole volts, from car info on some decoders). */
     float battery = -1, coolant = Float.NaN;
+    private boolean batteryFromLog;
     /**
      * Tyre pressures in the car's own unit (tyresPsi: psi, else kPa, as Car Info shows them), front left, front
      * right, rear left, rear right; below zero: that sensor unknown; null until known.
@@ -230,6 +231,11 @@ final class CanBus {
                     int f = p[OFFSET + 14] & 0xFF;
                     if (f != 0 && f != 0xFF) fuel = f;
                 }
+                // Whole volts; the log's reading is finer, so this only stands in until one arrives.
+                if (p.length > OFFSET + 15 && !batteryFromLog) {
+                    int v = p[OFFSET + 15] & 0xFF;
+                    if (v > 0 && v <= 30) battery = v;
+                }
                 break;
             case DOOR:
                 doors = p[OFFSET] & (FRONT_LEFT | FRONT_RIGHT | REAR_LEFT | REAR_RIGHT | TRUNK | HOOD);
@@ -247,12 +253,13 @@ final class CanBus {
      * rear right.
      */
     void decodeCarState(byte[] f) {
-        if (f.length < OFFSET + 7) return;
+        if (f.length < OFFSET + 7 || !log.gmRaise()) return;
         if (f[OFFSET] == 4) {
             coolant = (f[OFFSET + 1] & 0xFF) - 40;
             int litres = f[OFFSET + 3] & 0xFF;
             fuel = litres == 0xFF ? -1 : litres;
             battery = volts(u16(f, OFFSET + 4));
+            batteryFromLog = battery > 0;
         } else if (f[OFFSET] == 1) {
             tyresPsi = f[OFFSET + 1] == 1;
             float[] p = new float[4];

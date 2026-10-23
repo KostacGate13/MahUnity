@@ -157,18 +157,19 @@ final class CockpitLayout extends ViewGroup {
             pane.set(pad, stageBottom + pad, w - pad, contentBottom);
         }
         int ph = pane.height(), gap = Math.round(pad * 0.7f);
-        // Home: the upper widget on glass over the lower one. Music: a taller media card over three sources.
+        // Home: the upper widget on glass over the lower one. Music: a taller media card over the three sources,
+        // one short, wide row each, so their names fit.
         clockGlass.set(pane.left, pane.top, pane.right, pane.top + Math.round(ph * 0.54f));
         clockRect.set(clockGlass);
         clockRect.inset(Math.round(pad * 0.9f), Math.round(pad * 0.6f));
         bottomRect.set(pane.left, pane.bottom - Math.round(ph * 0.42f), pane.right, pane.bottom);
         if (tab == MUSIC) {
-            mediaRect.set(pane.left, pane.top, pane.right, pane.top + Math.round(ph * 0.52f));
+            mediaRect.set(pane.left, pane.top, pane.right, pane.top + Math.round(ph * 0.46f));
             int top = mediaRect.bottom + gap;
-            float cw = (pane.width() - gap * (sources.length - 1)) / (float) sources.length;
+            float rh = (pane.bottom - top - gap * (sources.length - 1)) / (float) sources.length;
             for (int i = 0; i < sources.length; i++) {
-                int l = Math.round(pane.left + i * (cw + gap));
-                sourceRects[i].set(l, top, Math.round(l + cw), pane.bottom);
+                int t = Math.round(top + i * (rh + gap));
+                sourceRects[i].set(pane.left, t, pane.right, Math.round(t + rh));
             }
         } else {
             mediaRect.set(bottomRect);
@@ -206,7 +207,6 @@ final class CockpitLayout extends ViewGroup {
         Chrome.background(c, getWidth(), getHeight(), background, backgroundGlow);
         // Glass under the cards that have none of their own (the media card, widgets and tiles draw theirs).
         if (tab == HOME) drawGlass(c, clockGlass);
-        if (tab == VEHICLE) drawGlass(c, vehicleRect);
     }
 
     private void drawGlass(Canvas c, Rect r) {
