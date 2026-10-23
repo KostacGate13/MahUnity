@@ -4,6 +4,8 @@ import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.LinearGradient;
+import android.graphics.Paint;
+import android.graphics.RadialGradient;
 import android.graphics.Shader;
 import android.graphics.Typeface;
 import android.graphics.drawable.Drawable;
@@ -12,14 +14,24 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.animation.DecelerateInterpolator;
 
-/** Palette, type and the shaders every surface shares: black glass, polished silver, one ambient accent. */
+/**
+ * Palette, type and the shaders every surface shares, in one of two styles picked in Settings: frosted glass
+ * (light, see-through cards with a bright rim over a softly lit background) or simple (flat dark panels). One
+ * accent colour on top. Views take their surfaces from here, so a style is a change in this file only.
+ */
 final class Chrome {
+    static final int GLASS = 0, SIMPLE = 1;
+    /** Set before any view is built (HomeActivity.onCreate); changing it means rebuilding Home. */
+    static int style = GLASS;
+
     static final int SILVER_LIGHT = 0xFFF4F6F8;
     static final int SILVER = 0xFFB4BAC1;
-    static final int TEXT = 0xFFE2E5E9;
-    static final int TEXT_DIM = 0xFF7E858E;
-    static final int PANEL_TOP = 0xFF15181B;
-    static final int PANEL_BOTTOM = 0xFF060708;
+    static final int TEXT = 0xFFF2F4F7;
+    static final int TEXT_DIM = 0xFF9AA1AA;
+
+    // Type sizes, as shares of the screen unit (unit()): big enough to read at a glance from the driver's seat.
+    static final float TYPE_TITLE = 0.058f, TYPE_HEADLINE = 0.042f, TYPE_BODY = 0.031f, TYPE_CAPTION = 0.023f;
+    static final float ICON = 0.075f;
 
     /** Accent (ambient lighting) colours, as listed in Settings; names in R.array.ambient_names. */
     static final int[] ACCENTS = {
@@ -37,18 +49,17 @@ final class Chrome {
 
     private Chrome() {}
 
-    /** Polished metal, top to bottom: bright, a hard horizon just below the middle, a darker half that lifts again. */
+    /** Large digits, titles and icons: white that softens a little towards the bottom (glass), or plain white. */
     static Shader metal(float top, float bottom) {
-        return new LinearGradient(0, top, 0, bottom,
-                new int[] {SILVER_LIGHT, 0xFFD9DDE2, 0xFF878D95, 0xFFC4C9CF},
-                new float[] {0f, 0.48f, 0.54f, 1f}, Shader.TileMode.CLAMP);
+        int low = style == GLASS ? 0xFFD3D8DF : TEXT;
+        return new LinearGradient(0, top, 0, bottom, 0xFFFFFFFF, low, Shader.TileMode.CLAMP);
     }
 
-    /** A frame's edge, with light sweeping across it on the diagonal. */
+    /** A card's rim: bright along the top and fading down the sides (glass), or a plain dark line. */
     static Shader edge(float left, float top, float right, float bottom) {
-        return new LinearGradient(left, top, right, bottom,
-                new int[] {0xFF5E646C, SILVER_LIGHT, 0xFF3A3F45, 0xFF8E949B},
-                new float[] {0f, 0.32f, 0.68f, 1f}, Shader.TileMode.CLAMP);
+        if (style == SIMPLE) return new LinearGradient(0, top, 0, bottom, 0xFF2E3238, 0xFF2E3238, Shader.TileMode.CLAMP);
+        return new LinearGradient(0, top, 0, bottom, new int[] {0x8CFFFFFF, 0x2EFFFFFF, 0x1AFFFFFF},
+                new float[] {0f, 0.35f, 1f}, Shader.TileMode.CLAMP);
     }
 
     /** A hairline at the given peak alpha that fades out at both ends. */
@@ -64,9 +75,41 @@ final class Chrome {
                 Shader.TileMode.CLAMP);
     }
 
-    /** The black glass of tiles and cards: a touch of grey at the top, near black at the bottom. */
+    /** The fill of tiles, cards and keys: frosted, see-through white (glass), or a flat dark panel. */
     static Shader panel(float top, float bottom) {
-        return new LinearGradient(0, top, 0, bottom, PANEL_TOP, PANEL_BOTTOM, Shader.TileMode.CLAMP);
+        if (style == SIMPLE) return new LinearGradient(0, top, 0, bottom, 0xFF1A1C20, 0xFF1A1C20, Shader.TileMode.CLAMP);
+        return new LinearGradient(0, top, 0, bottom, 0x30FFFFFF, 0x12FFFFFF, Shader.TileMode.CLAMP);
+    }
+
+    /** Corner radius of cards and tiles, the same everywhere: rounder for glass. */
+    static float radius(Context context) {
+        return unit(context) * (style == GLASS ? 0.03f : 0.018f);
+    }
+
+    /**
+     * Home's background over the whole screen. Glass: dark grey lit from the top left, with a faint pool of the
+     * accent low on the right, so the see-through cards have light to catch. Simple: nearly black, flat.
+     */
+    static void background(Canvas c, int w, int h, Paint base, Paint glow) {
+        if (base.getShader() == null || glow.getColor() != accent) {
+            glow.setColor(accent);
+            if (style == SIMPLE) {
+                base.setShader(new LinearGradient(0, 0, 0, h, 0xFF0E0F11, 0xFF0B0C0E, Shader.TileMode.CLAMP));
+                glow.setShader(null);
+            } else {
+                base.setShader(new RadialGradient(w * 0.15f, -h * 0.2f, Math.max(w, h) * 1.1f,
+                        new int[] {0xFF3A4048, 0xFF1C1F24, 0xFF0C0D10}, new float[] {0f, 0.45f, 1f}, Shader.TileMode.CLAMP));
+                glow.setShader(new RadialGradient(w * 0.8f, h * 0.95f, Math.max(w, h) * 0.55f,
+                        withAlpha(accent, 0x22), accent & 0x00FFFFFF, Shader.TileMode.CLAMP));
+            }
+        }
+        c.drawRect(0, 0, w, h, base);
+        if (style == GLASS) c.drawRect(0, 0, w, h, glow);
+    }
+
+    /** Forget cached background shaders (size or accent changed). */
+    static void resetBackground(Paint base) {
+        base.setShader(null);
     }
 
     static int withAlpha(int color, int alpha) {

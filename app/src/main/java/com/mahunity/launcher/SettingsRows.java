@@ -25,7 +25,7 @@ final class SettingsRows extends ViewGroup {
 
     @Override protected void onMeasure(int widthSpec, int heightSpec) {
         int w = MeasureSpec.getSize(widthSpec);
-        rowHeight = Math.round(Chrome.unit(getContext()) * 0.1f);
+        rowHeight = Math.round(Chrome.unit(getContext()) * 0.115f);
         int spec = MeasureSpec.makeMeasureSpec(rowHeight, MeasureSpec.EXACTLY);
         for (int i = 0; i < getChildCount(); i++) {
             getChildAt(i).measure(MeasureSpec.makeMeasureSpec(w, MeasureSpec.EXACTLY), spec);
@@ -72,9 +72,10 @@ final class SettingsRows extends ViewGroup {
         }
 
         @Override protected void onSizeChanged(int w, int h, int oldw, int oldh) {
-            pad = Chrome.unit(getContext()) * 0.035f;
-            title.setTextSize(h * 0.3f);
-            value.setTextSize(h * 0.27f);
+            float u = Chrome.unit(getContext());
+            pad = u * 0.035f;
+            title.setTextSize(Math.min(h * 0.34f, u * Chrome.TYPE_BODY * 1.1f));
+            value.setTextSize(Math.min(h * 0.3f, u * Chrome.TYPE_BODY));
             baseline = h / 2f + title.getTextSize() * 0.36f;
             line.setShader(Chrome.hairline(0, 0, w, 0, 0x70));
         }

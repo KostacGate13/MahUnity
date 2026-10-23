@@ -24,15 +24,16 @@ final class Slots {
 
     /**
      * Known packages, best first. Phone-style apps lead; then the firmware apps of the common head-unit
-     * platforms (FYT com.syu.*, MTCD com.microntek.*, TopWay com.tw.*). Anything else is found by WORDS.
+     * platforms (NWD com.nwd.*, FYT com.syu.*, MTCD com.microntek.*, TopWay com.tw.*). Anything else is found by
+     * WORDS.
      */
     private static final String[][] PACKAGES = {
         {"com.waze", "com.google.android.apps.maps", "com.sygic.aura", "net.osmand.plus", "net.osmand",
             "com.here.app.maps", "com.tomtom.gplay.navapp"},
         {"com.spotify.music", "com.google.android.apps.youtube.music", "deezer.android.app",
-            "com.apple.android.music", "com.syu.music", "com.microntek.music", "com.tw.music"},
-        {"com.syu.radio", "com.microntek.radio", "com.tw.radio", "com.android.fmradio"},
-        {"com.syu.bt", "com.microntek.bluetooth", "com.tw.bt"},
+            "com.apple.android.music", "com.nwd.android.music.ui", "com.syu.music", "com.microntek.music", "com.tw.music"},
+        {"com.nwd.radio", "com.syu.radio", "com.microntek.radio", "com.tw.radio", "com.android.fmradio"},
+        {"com.nwd.android.phone", "com.syu.bt", "com.microntek.bluetooth", "com.tw.bt"},
         {"com.zjinnova.zlink", "cn.manstep.phonemirrorBox"},
     };
 
@@ -84,18 +85,16 @@ final class Slots {
     private AppEntry guess(int slot, List<AppEntry> apps) {
         if (slot >= PACKAGES.length) return null;
         for (String p : PACKAGES[slot]) {
-            for (AppEntry e : apps) {
-                if (e.component.getPackageName().equals(p)) return e;
-            }
+            AppEntry e = best(slot, p, null, apps);
+            if (e != null) return e;
         }
         String category = slot == NAV ? Intent.CATEGORY_APP_MAPS : slot == MUSIC ? Intent.CATEGORY_APP_MUSIC : null;
         if (category != null) {
             Intent intent = new Intent(Intent.ACTION_MAIN).addCategory(category);
             List<ResolveInfo> found = context.getPackageManager().queryIntentActivities(intent, 0);
             for (ResolveInfo r : found) {
-                for (AppEntry e : apps) {
-                    if (e.component.getPackageName().equals(r.activityInfo.packageName)) return e;
-                }
+                AppEntry e = best(slot, r.activityInfo.packageName, r.activityInfo.name, apps);
+                if (e != null) return e;
             }
         }
         for (String word : WORDS[slot]) {
@@ -104,6 +103,23 @@ final class Slots {
             }
         }
         return null;
+    }
+
+    /**
+     * The package's entry for a slot: the named activity if listed; otherwise, as one package may hold several
+     * apps (a media package with a calculator in it), the entry whose name fits the slot, else the only one.
+     */
+    private static AppEntry best(int slot, String pkg, String activity, List<AppEntry> apps) {
+        AppEntry only = null;
+        int count = 0;
+        for (AppEntry e : apps) {
+            if (!e.component.getPackageName().equals(pkg)) continue;
+            if (activity != null && e.component.getClassName().equals(activity)) return e;
+            if (any(e, WORDS[slot])) return e;
+            only = e;
+            count++;
+        }
+        return count == 1 ? only : null;
     }
 
     private static boolean any(AppEntry e, String[] words) {

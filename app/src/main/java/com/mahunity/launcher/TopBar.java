@@ -11,8 +11,8 @@ import java.util.Calendar;
 import java.util.Locale;
 
 /**
- * The strip across the top: a name in spaced-out metal letters over a full-width hairline, and in the
- * cockpit a small clock on the right, since the big one shows only on the Home tab.
+ * The strip across the top: a name in spaced-out letters over a full-width hairline, and on the right the
+ * outside temperature and the time, large enough to read at a glance.
  */
 final class TopBar extends View {
     private final TextPaint mark = new TextPaint(Paint.ANTI_ALIAS_FLAG);
@@ -22,7 +22,7 @@ final class TopBar extends View {
     private String text = "", timeText = "", outsideText = "";
     private float baseline;
     private int inset, clockRight = -1;
-    private boolean ticking;
+    private boolean ticking, clockHidden;
 
     private final Runnable tick = new Runnable() {
         @Override public void run() {
@@ -38,13 +38,13 @@ final class TopBar extends View {
 
     TopBar(Context context) {
         super(context);
-        mark.setTypeface(Chrome.LIGHT);
-        mark.setLetterSpacing(0.42f);
-        time.setTypeface(Chrome.LIGHT);
+        mark.setTypeface(Chrome.MEDIUM);
+        mark.setLetterSpacing(0.24f);
+        time.setTypeface(Chrome.MEDIUM);
         time.setColor(Chrome.TEXT);
-        time.setLetterSpacing(0.08f);
+        time.setLetterSpacing(0.02f);
         time.setTextAlign(Paint.Align.RIGHT);
-        outside.setTypeface(Chrome.LIGHT);
+        outside.setTypeface(Chrome.REGULAR);
         outside.setColor(Chrome.TEXT_DIM);
         outside.setTextAlign(Paint.Align.RIGHT);
     }
@@ -58,6 +58,13 @@ final class TopBar extends View {
     /** Shows the small clock with its right edge this far from the bar's right edge. */
     void showClock(int fromRight) {
         clockRight = fromRight;
+    }
+
+    /** Hides the time while a larger clock is on screen (the Home tab's clock widget); the temperature stays. */
+    void hideClock(boolean hidden) {
+        if (hidden == clockHidden) return;
+        clockHidden = hidden;
+        invalidate();
     }
 
     /** Keeps the small clock current; it is drawn only once the layout has placed it (showClock). */
@@ -85,12 +92,12 @@ final class TopBar extends View {
     }
 
     @Override protected void onSizeChanged(int w, int h, int oldw, int oldh) {
-        float size = h * 0.28f;
+        float size = h * 0.3f;
         mark.setTextSize(size);
-        baseline = h / 2f + size * 0.36f;
+        time.setTextSize(h * 0.42f);
+        baseline = h / 2f + time.getTextSize() * 0.36f;
         mark.setShader(Chrome.metal(baseline - size * 0.72f, baseline));
-        time.setTextSize(h * 0.3f);
-        outside.setTextSize(h * 0.26f);
+        outside.setTextSize(h * 0.3f);
         line.setShader(Chrome.hairline(0, 0, w, 0, 0xC0));
     }
 
@@ -98,10 +105,11 @@ final class TopBar extends View {
         c.drawText(text, inset, baseline, mark);
         if (clockRight >= 0) {
             float x = getWidth() - clockRight;
-            c.drawText(timeText, x, baseline, time);
-            if (!outsideText.isEmpty()) {
-                c.drawText(outsideText, x - time.measureText(timeText) - time.getTextSize() * 1.2f, baseline, outside);
+            if (!clockHidden) {
+                c.drawText(timeText, x, baseline, time);
+                x -= time.measureText(timeText) + time.getTextSize() * 0.8f;
             }
+            if (!outsideText.isEmpty()) c.drawText(outsideText, x, baseline, outside);
         }
         int h = getHeight();
         c.drawRect(0, h - 1, getWidth(), h, line);

@@ -31,7 +31,7 @@ abstract class InfoCard extends View {
         frame.setStyle(Paint.Style.STROKE);
         caption.setTypeface(Chrome.MEDIUM);
         caption.setColor(Chrome.TEXT_DIM);
-        caption.setLetterSpacing(0.25f);
+        caption.setLetterSpacing(0.16f);
         big.setTypeface(Chrome.THIN);
         small.setTypeface(Chrome.LIGHT);
         small.setColor(Chrome.TEXT_DIM);
@@ -43,14 +43,15 @@ abstract class InfoCard extends View {
     @Override protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         float stroke = Math.max(1f, h * 0.006f);
         box.set(stroke / 2, stroke / 2, w - stroke / 2, h - stroke / 2);
-        radius = Math.min(w, h) * 0.07f;
+        radius = Chrome.radius(getContext());
         pad = h * 0.1f;
         fill.setShader(Chrome.panel(0, h));
         frame.setStrokeWidth(stroke);
         frame.setShader(Chrome.edge(0, 0, w, h));
-        caption.setTextSize(h * 0.058f);
+        float u = Chrome.unit(getContext());
+        caption.setTextSize(Math.min(h * 0.075f, u * Chrome.TYPE_CAPTION));
         captionY = pad + caption.getTextSize();
-        note.setTextSize(h * 0.06f);
+        note.setTextSize(Math.min(h * 0.075f, u * Chrome.TYPE_CAPTION));
         laidOut(w, h);
     }
 

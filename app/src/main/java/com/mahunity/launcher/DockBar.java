@@ -50,8 +50,15 @@ final class DockBar extends ViewGroup {
     }
 
     @Override protected void onSizeChanged(int w, int h, int oldw, int oldh) {
-        glass.setShader(new LinearGradient(0, 0, 0, h, 0xF0101215, 0xFA040506, Shader.TileMode.CLAMP));
-        line.setShader(Chrome.hairline(0, 0, w, 0, 0xB0));
+        if (Chrome.style == Chrome.GLASS) {
+            glass.setShader(new LinearGradient(0, 0, 0, h, 0x24FFFFFF, 0x08FFFFFF, Shader.TileMode.CLAMP));
+            line.setShader(Chrome.hairline(0, 0, w, 0, 0xB0));
+        } else {
+            glass.setShader(null);
+            glass.setColor(0xFF121417);
+            line.setShader(null);
+            line.setColor(0xFF2A2D33);
+        }
         stripColor = 0;
     }
 
@@ -70,7 +77,7 @@ final class DockBar extends ViewGroup {
         c.drawRect(w * 0.08f, y, w * 0.92f, y + Math.max(1.5f, h * 0.014f), strip);
     }
 
-    /** One entry: a line icon over a small spaced-out name. Selected: the icon in accent, a light above it. */
+    /** One entry: a line icon beside its name, in large type. Selected: icon and name in accent, a light above. */
     static final class Item extends View {
         private final TextPaint label = new TextPaint(Paint.ANTI_ALIAS_FLAG);
         private final Paint icon = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
@@ -80,21 +87,19 @@ final class DockBar extends ViewGroup {
         private final String title;
         private Bitmap mask;
         private Shader metal;
-        private float iconX, iconY, labelY;
+        private float iconX, iconY, labelX, labelY;
         private int glowColor;
         private boolean selected, sunk;
 
         Item(Context context, int iconRes, String title) {
             super(context);
             this.iconRes = iconRes;
-            this.title = Text.upper(title);
+            this.title = title;
             setClickable(true);
             setLongClickable(true);
             setFocusable(true);
             setContentDescription(title);
             label.setTypeface(Chrome.MEDIUM);
-            label.setLetterSpacing(0.14f);
-            label.setTextAlign(Paint.Align.CENTER);
             bar.setStrokeCap(Paint.Cap.ROUND);
         }
 
@@ -105,17 +110,23 @@ final class DockBar extends ViewGroup {
         }
 
         @Override protected void onSizeChanged(int w, int h, int oldw, int oldh) {
-            int size = Math.round(h * 0.36f);
-            iconX = (w - size) / 2f;
-            iconY = h * 0.17f;
+            float u = Chrome.unit(getContext());
+            int size = Math.round(Math.min(h * 0.42f, u * 0.052f));
+            float text = Math.min(h * 0.3f, u * Chrome.TYPE_BODY * 1.08f);
+            label.setTextSize(text);
+            float gap = size * 0.4f;
+            // Icon and name side by side, centred; a long name is set smaller to fit the item.
+            float room = w * 0.92f - size - gap;
+            float wide = label.measureText(title);
+            if (wide > room) label.setTextSize(text * room / wide);
+            float row = size + gap + label.measureText(title);
+            iconX = (w - row) / 2f;
+            iconY = (h - size) / 2f;
+            labelX = iconX + size + gap;
+            labelY = h / 2f + label.getTextSize() * 0.36f;
             mask = Chrome.mask(getContext(), iconRes, size);
             metal = Chrome.metal(iconY, iconY + size);
-            float text = h * 0.13f;
-            label.setTextSize(text);
-            float wide = label.measureText(title);
-            if (wide > w * 0.92f) label.setTextSize(text * w * 0.92f / wide);
-            labelY = iconY + size + h * 0.22f;
-            bar.setStrokeWidth(Math.max(2f, h * 0.03f));
+            bar.setStrokeWidth(Math.max(2f, h * 0.035f));
             glowColor = 0;
         }
 
@@ -151,8 +162,8 @@ final class DockBar extends ViewGroup {
                 }
                 c.drawBitmap(mask, iconX, iconY, icon);
             }
-            label.setColor(lit ? Chrome.TEXT : Chrome.TEXT_DIM);
-            c.drawText(title, w / 2f, labelY, label);
+            label.setColor(selected ? Chrome.accent : lit ? Chrome.TEXT : Chrome.TEXT_DIM);
+            c.drawText(title, labelX, labelY, label);
         }
     }
 }

@@ -42,10 +42,13 @@ final class AppsGrid extends GridView {
     @Override protected void onMeasure(int widthSpec, int heightSpec) {
         int w = MeasureSpec.getSize(widthSpec), h = MeasureSpec.getSize(heightSpec);
         if (w > 0 && h > 0) {
-            int pad = Math.round(Math.min(h, w * 0.6f) * 0.035f);
-            int cell = Math.round(Math.min(h / 3.3f, (w - 2 * pad) / 4.2f));
+            float u = Chrome.unit(getContext());
+            int pad = Math.round(u * 0.035f);
+            // Cards about a third of the screen unit wide: five across a landscape head unit, three in portrait.
+            int columns = Math.max(3, Math.round((w - 2 * pad) / (u * 0.34f)));
+            int cell = Math.round(Math.min(u * 0.25f, (w - 2 * pad) / (float) columns * 0.72f));
             if (getPaddingLeft() != pad) setPadding(pad, pad / 2, pad, pad);
-            setNumColumns(Math.max(3, (w - 2 * pad) / Math.max(1, Math.round(cell * 0.95f))));
+            setNumColumns(columns);
             setFadingEdgeLength(pad * 2);
             if (cell != adapter.cellHeight) {
                 adapter.cellHeight = cell;

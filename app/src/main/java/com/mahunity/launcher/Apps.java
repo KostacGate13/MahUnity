@@ -1,7 +1,10 @@
 package com.mahunity.launcher;
 
+import android.content.ComponentName;
 import android.content.Context;
+import android.content.pm.ActivityInfo;
 import android.content.pm.LauncherActivityInfo;
+import android.content.pm.PackageManager;
 import android.content.pm.LauncherApps;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
@@ -30,6 +33,18 @@ final class Apps {
 
     private static final int[] DENSITIES = {160, 240, 320, 480, 640};
 
+    /**
+     * Head-unit apps the stock NWD launcher opens by name, which have no app-drawer entry of their own: radio,
+     * phone, Bluetooth music, the music player, ZLink. Listed when installed and not listed already.
+     */
+    private static final String[] HIDDEN = {
+        "com.nwd.radio/com.nwd.radio.home_horizontalActivity",
+        "com.nwd.android.phone/com.nwd.android.phone.home_horizontalActivity",
+        "com.nwd.bt.music/com.nwd.bt.music.home_horizontalActivity",
+        "com.nwd.android.music.ui/com.nwd.android.music.ui.home_horizontalActivity",
+        "com.zjinnova.zlink/com.zjinnova.android.zlink.features.main.MainActivity",
+    };
+
     private final Context context;
     private final LauncherApps launcherApps;
     private final Listener listener;
@@ -54,8 +69,24 @@ final class Apps {
             List<LauncherActivityInfo> infos = launcherApps.getActivityList(null, Process.myUserHandle());
             String self = context.getPackageName();
             final List<AppEntry> list = new ArrayList<>(infos.size());
+            java.util.Set<String> packages = new java.util.HashSet<>();
             for (LauncherActivityInfo info : infos) {
-                if (!self.equals(info.getComponentName().getPackageName())) list.add(new AppEntry(info));
+                String pkg = info.getComponentName().getPackageName();
+                packages.add(pkg);
+                if (!self.equals(pkg)) list.add(new AppEntry(info));
+            }
+            PackageManager pm = context.getPackageManager();
+            for (String name : HIDDEN) {
+                ComponentName c = ComponentName.unflattenFromString(name);
+                if (packages.contains(c.getPackageName())) continue;
+                try {
+                    ActivityInfo a = pm.getActivityInfo(c, 0);
+                    if (a.exported && a.enabled) {
+                        list.add(new AppEntry(c, Process.myUserHandle(), String.valueOf(a.loadLabel(pm))));
+                    }
+                } catch (PackageManager.NameNotFoundException e) {
+                    // Not on this unit.
+                }
             }
             final Collator collator = Collator.getInstance();
             collator.setStrength(Collator.PRIMARY);
@@ -139,8 +170,9 @@ final class Apps {
     private Bitmap render(AppEntry entry, int size) {
         Drawable d;
         try {
-            d = entry.info.getIcon(density(size));
-        } catch (RuntimeException e) {
+            d = entry.info != null ? entry.info.getIcon(density(size))
+                    : context.getPackageManager().getActivityIcon(entry.component);
+        } catch (RuntimeException | PackageManager.NameNotFoundException e) {
             d = null;
         }
         if (d == null) d = context.getPackageManager().getDefaultActivityIcon();

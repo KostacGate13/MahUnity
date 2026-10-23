@@ -19,13 +19,16 @@ import android.view.ViewGroup;
 final class HomeLayout extends ViewGroup {
     final TopBar top;
     final ChromeButton gear;
+    final Header header;
     /** The widgets picked in Settings: the clock or the speedometer-clock, and the media card or another. */
     final View upper, lower;
     final TileView[] tiles;
 
-    private final Rect topRect = new Rect(), gearRect = new Rect(), clockRect = new Rect(), mediaRect = new Rect();
+    private final Rect topRect = new Rect(), gearRect = new Rect(), headerRect = new Rect(), clockRect = new Rect();
+    private final Rect mediaRect = new Rect();
     private final Rect[] tileRects;
     private final Paint background = new Paint();
+    private final Paint backgroundGlow = new Paint();
     private final Paint divider = new Paint();
     private final Paint strip = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint stripGlow = new Paint();
@@ -33,10 +36,11 @@ final class HomeLayout extends ViewGroup {
     private float dividerX = -1, dividerTop, dividerBottom, stripY, stripH;
     private int stripColor;
 
-    HomeLayout(Context context, TopBar top, ChromeButton gear, View upper, View lower, TileView[] tiles) {
+    HomeLayout(Context context, TopBar top, ChromeButton gear, Header header, View upper, View lower, TileView[] tiles) {
         super(context);
         this.top = top;
         this.gear = gear;
+        this.header = header;
         this.upper = upper;
         this.lower = lower;
         this.tiles = tiles;
@@ -45,7 +49,9 @@ final class HomeLayout extends ViewGroup {
         setWillNotDraw(false);
         addView(top);
         addView(gear);
+        addView(header);
         addView(upper);
+        top.hideClock(upper instanceof ClockView);
         addView(lower);
         for (TileView t : tiles) addView(t);
     }
@@ -55,6 +61,7 @@ final class HomeLayout extends ViewGroup {
         place(w, h);
         measure(top, topRect);
         measure(gear, gearRect);
+        measure(header, headerRect);
         measure(upper, clockRect);
         measure(lower, mediaRect);
         for (int i = 0; i < tiles.length; i++) measure(tiles[i], tileRects[i]);
@@ -70,13 +77,17 @@ final class HomeLayout extends ViewGroup {
         boolean portrait = h > w;
         float s = Math.min(h, w * 0.6f);
         int pad = Math.round(s * 0.035f);
-        int barH = Math.round(s * 0.11f);
+        int barH = Math.round(s * 0.1f);
+        int headerH = Math.round(s * 0.1f);
         topRect.set(0, 0, w, barH);
         top.setInset(pad);
         int g = Math.round(barH * 0.62f);
         gearRect.set(w - pad - g, (barH - g) / 2, w - pad, (barH - g) / 2 + g);
+        top.showClock(w - gearRect.left + pad);
+        headerRect.set(0, barH, w, barH + headerH);
+        header.setInset(pad);
 
-        int contentTop = barH + Math.round(pad * 0.9f);
+        int contentTop = barH + headerH;
         int contentBottom = h - Math.round(pad * 1.4f);
         int ch = contentBottom - contentTop;
         int gap = Math.round(pad * 0.7f);
@@ -113,6 +124,7 @@ final class HomeLayout extends ViewGroup {
     @Override protected void onLayout(boolean changed, int l, int t, int r, int b) {
         layout(top, topRect);
         layout(gear, gearRect);
+        layout(header, headerRect);
         layout(upper, clockRect);
         layout(lower, mediaRect);
         for (int i = 0; i < tiles.length; i++) layout(tiles[i], tileRects[i]);
@@ -123,16 +135,14 @@ final class HomeLayout extends ViewGroup {
     }
 
     @Override protected void onSizeChanged(int w, int h, int oldw, int oldh) {
-        // A faint pool of light from above, falling off to pure black.
-        background.setShader(new RadialGradient(w * 0.5f, -h * 0.15f, Math.max(w, h) * 0.75f,
-                new int[] {0xFF15191D, 0xFF07080A, 0xFF000000}, new float[] {0f, 0.55f, 1f}, Shader.TileMode.CLAMP));
+        Chrome.resetBackground(background);
         divider.setShader(Chrome.hairline(0, dividerTop, 0, dividerBottom, 0x90));
         stripColor = 0;
     }
 
     @Override protected void onDraw(Canvas c) {
         int w = getWidth(), h = getHeight();
-        c.drawRect(0, 0, w, h, background);
+        Chrome.background(c, w, h, background, backgroundGlow);
         if (dividerX > 0) c.drawRect(dividerX, dividerTop, dividerX + 1, dividerBottom, divider);
 
         // The ambient light strip along the bottom edge, in the colour picked in Settings.

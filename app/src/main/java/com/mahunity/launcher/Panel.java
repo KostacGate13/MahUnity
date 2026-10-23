@@ -3,13 +3,11 @@ package com.mahunity.launcher;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Paint;
-import android.graphics.RadialGradient;
-import android.graphics.Shader;
 import android.text.TextPaint;
 import android.view.View;
 import android.view.ViewGroup;
 
-/** A full-screen sheet over Home (all apps, settings): a title in metal, a hairline, a close ring, one content view. */
+/** A full-screen sheet over Home (all apps, settings): a large title, a note on the right, a close key, one content view. */
 final class Panel extends ViewGroup {
     final ChromeButton close;
     final ChipButton action;
@@ -17,6 +15,7 @@ final class Panel extends ViewGroup {
     private final TextPaint titlePaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
     private final TextPaint notePaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
     private final Paint background = new Paint();
+    private final Paint backgroundGlow = new Paint();
     private final Paint line = new Paint();
     private String title = "", note = "";
     private int headerH, pad;
@@ -32,11 +31,11 @@ final class Panel extends ViewGroup {
         action.setVisibility(GONE);
         addView(close);
         addView(action);
-        titlePaint.setTypeface(Chrome.LIGHT);
-        titlePaint.setLetterSpacing(0.3f);
-        notePaint.setTypeface(Chrome.LIGHT);
+        titlePaint.setTypeface(Chrome.MEDIUM);
+        notePaint.setTypeface(Chrome.MEDIUM);
         notePaint.setColor(Chrome.TEXT_DIM);
         notePaint.setLetterSpacing(0.12f);
+        notePaint.setTextAlign(Paint.Align.RIGHT);
     }
 
     void setContent(View v) {
@@ -46,8 +45,8 @@ final class Panel extends ViewGroup {
     }
 
     void setTitle(String title, String note) {
-        this.title = Text.upper(title);
-        this.note = note == null ? "" : note;
+        this.title = title == null ? "" : title;
+        this.note = note == null ? "" : Text.upper(note);
         invalidate();
     }
 
@@ -83,21 +82,23 @@ final class Panel extends ViewGroup {
     }
 
     @Override protected void onSizeChanged(int w, int h, int oldw, int oldh) {
-        background.setShader(new RadialGradient(w * 0.5f, -h * 0.15f, Math.max(w, h) * 0.75f,
-                new int[] {0xFF15191D, 0xFF07080A, 0xFF000000}, new float[] {0f, 0.55f, 1f}, Shader.TileMode.CLAMP));
-        float size = headerH * 0.26f;
+        Chrome.resetBackground(background);
+        float u = Chrome.unit(getContext());
+        float size = Math.min(headerH * 0.5f, u * Chrome.TYPE_TITLE);
         titlePaint.setTextSize(size);
-        notePaint.setTextSize(headerH * 0.2f);
+        notePaint.setTextSize(u * Chrome.TYPE_CAPTION);
         titleY = headerH / 2f + size * 0.36f;
         titlePaint.setShader(Chrome.metal(titleY - size * 0.72f, titleY));
         line.setShader(Chrome.hairline(0, 0, w, 0, 0xC0));
     }
 
     @Override protected void onDraw(Canvas c) {
-        c.drawRect(0, 0, getWidth(), getHeight(), background);
+        Chrome.background(c, getWidth(), getHeight(), background, backgroundGlow);
         c.drawText(title, pad, titleY, titlePaint);
         if (!note.isEmpty()) {
-            c.drawText(note, pad + titlePaint.measureText(title) + pad, titleY, notePaint);
+            // Right-aligned, just left of the action chip or the close key.
+            View left = action.getVisibility() != GONE ? action : close;
+            c.drawText(note, left.getLeft() - pad, titleY, notePaint);
         }
         c.drawRect(0, headerH - 1, getWidth(), headerH, line);
     }

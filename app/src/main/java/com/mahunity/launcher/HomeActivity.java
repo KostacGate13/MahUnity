@@ -13,6 +13,7 @@ import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.graphics.Rect;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -22,6 +23,8 @@ import android.text.SpannableString;
 import android.text.Spanned;
 import android.text.style.ForegroundColorSpan;
 import android.view.View;
+import android.view.WindowInsets;
+import android.view.WindowInsetsController;
 import android.view.ViewGroup;
 import android.view.animation.DecelerateInterpolator;
 import android.widget.AdapterView;
@@ -46,6 +49,7 @@ public final class HomeActivity extends Activity
     private static final String PREF_NAME = "name";
     private static final String PREF_CAR = "car";
     private static final String PREF_HOLOGRAM = "hologram";
+    private static final String PREF_UI_STYLE = "ui_style";
     private static final String PREF_TOP_WIDGET = "top_widget";
     private static final String PREF_BOTTOM_WIDGET = "bottom_widget";
     private static final String PREF_TANK = "tank";
@@ -83,6 +87,7 @@ public final class HomeActivity extends Activity
     private VehicleView vehicle;
     private CarFrames carFrames;
     private TopBar top;
+    private Header header;
     /** Whichever upper widget Settings picked; the other is null. */
     private ClockView clock;
     private SpeedGauge gauge;
@@ -95,7 +100,7 @@ public final class HomeActivity extends Activity
     private TileView[] tiles;
     private Panel appsPanel, settingsPanel, shown;
     private AppsGrid grid;
-    private SettingsRows.Row rowHome, rowCar, rowStyle, rowTop, rowBottom, rowTank, rowAmbient, rowSpeed, rowMedia,
+    private SettingsRows.Row rowHome, rowCar, rowUiStyle, rowStyle, rowTop, rowBottom, rowTank, rowAmbient, rowSpeed, rowMedia,
             rowCarData, rowName;
     private String[] headings;
     /** The last GPS reading, kept for when the car stops reporting its own speed. */
@@ -122,7 +127,11 @@ public final class HomeActivity extends Activity
                 if (tripCard != null) tripCard.set(trip);
                 showGaugeSpeed();
                 // Car Info's logging resets when it restarts; this turns it back on.
-                if (ticks % 60 == 0) can.wake(false);
+                if (ticks % 60 == 0) {
+                    can.wake(false);
+                    // The greeting and the date move on with the clock.
+                    showHeader();
+                }
             }
             handler.postDelayed(this, 1000);
         }
@@ -138,6 +147,7 @@ public final class HomeActivity extends Activity
         super.onCreate(state);
         prefs = getSharedPreferences("home", MODE_PRIVATE);
         Chrome.accent = Chrome.ACCENTS[accentIndex()];
+        Chrome.style = prefs.getInt(PREF_UI_STYLE, Chrome.GLASS) == Chrome.SIMPLE ? Chrome.SIMPLE : Chrome.GLASS;
         slots = new Slots(this, prefs);
         media = new MediaWatcher(this, this);
         speed = new SpeedWatcher(this, this);
@@ -153,12 +163,14 @@ public final class HomeActivity extends Activity
         root.addView(appsPanel);
         root.addView(settingsPanel);
         setContentView(root);
+        hideStatusBar();
         can.start();
         handler.post(tick);
     }
 
     private void buildHome() {
         top = new TopBar(this);
+        header = new Header(this);
         top.setText(prefs.getString(PREF_NAME, getString(R.string.app_name)));
         ChromeButton gear = new ChromeButton(this, R.drawable.ic_settings, R.string.settings_title);
         gear.setOnClickListener(new View.OnClickListener() {
@@ -214,7 +226,8 @@ public final class HomeActivity extends Activity
         tiles = new TileView[Slots.COUNT];
         if (!prefs.getBoolean(PREF_CAR, true)) {
             for (int i = 0; i < Slots.COUNT; i++) tiles[i] = tile(i);
-            home = new HomeLayout(this, top, gear, upper, lower, tiles);
+            home = new HomeLayout(this, top, gear, header, upper, lower, tiles);
+            showHeader();
             return;
         }
 
@@ -247,7 +260,7 @@ public final class HomeActivity extends Activity
         slotItem(nav, Slots.NAV);
         slotItem(phone, Slots.PHONE);
         slotItem(all, Slots.APPS);
-        cockpit = new CockpitLayout(this, top, gear, upper, lower, card, sources, vehicle, car, dock);
+        cockpit = new CockpitLayout(this, top, gear, header, upper, lower, card, sources, vehicle, car, dock);
         home = cockpit;
         showTab(CockpitLayout.HOME);
     }
@@ -291,6 +304,15 @@ public final class HomeActivity extends Activity
         cockpit.showTab(tab, animate);
         int[] order = {CockpitLayout.HOME, CockpitLayout.MUSIC, CockpitLayout.VEHICLE};
         for (int i = 0; i < order.length; i++) tabItems[i].setChosen(order[i] == tab);
+        showHeader();
+    }
+
+    /** The header names the tab: the greeting and the date on Home, Music and its sources, Vehicle and the date. */
+    private void showHeader() {
+        int tab = cockpit == null ? CockpitLayout.HOME : cockpit.tab();
+        if (tab == CockpitLayout.MUSIC) header.set(getString(R.string.slot_music), getString(R.string.header_sources));
+        else if (tab == CockpitLayout.VEHICLE) header.set(getString(R.string.tab_vehicle), Text.today());
+        else header.set(Text.greeting(this), Text.today());
     }
 
     /** Back to the Home tab, the car turning to face you; false if it was there already. */
@@ -361,6 +383,12 @@ public final class HomeActivity extends Activity
             @Override public void onClick(View v) {
                 prefs.edit().putBoolean(PREF_CAR, !prefs.getBoolean(PREF_CAR, true)).commit();
                 // Home is built for one layout or the other; rebuilding it is simplest and rare.
+                recreate();
+            }
+        });
+        rowUiStyle = rows.add(R.string.set_ui_style, new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                prefs.edit().putInt(PREF_UI_STYLE, Chrome.style == Chrome.GLASS ? Chrome.SIMPLE : Chrome.GLASS).commit();
                 recreate();
             }
         });
@@ -495,6 +523,30 @@ public final class HomeActivity extends Activity
         else homeTab();
     }
 
+    /** Back from another app or a dialog, the system may have brought its bar back. */
+    @Override public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus) hideStatusBar();
+    }
+
+    /**
+     * Full screen: Home's top bar carries the time and the temperature, so the system's status bar is hidden
+     * (the theme asks for it too). A swipe down from the top edge still shows it for a moment.
+     */
+    @SuppressWarnings("deprecation")
+    private void hideStatusBar() {
+        View decor = getWindow().getDecorView();
+        if (Build.VERSION.SDK_INT >= 30) {
+            WindowInsetsController c = decor.getWindowInsetsController();
+            if (c == null) return;
+            c.setSystemBarsBehavior(WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+            c.hide(WindowInsets.Type.statusBars());
+        } else {
+            decor.setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                    | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
+        }
+    }
+
     @Override public void onTrimMemory(int level) {
         super.onTrimMemory(level);
         if (level >= TRIM_MEMORY_MODERATE) apps.trim();
@@ -536,6 +588,13 @@ public final class HomeActivity extends Activity
     }
 
     private void launch(AppEntry e, View from) {
+        if (e.info == null) {
+            // A head-unit app without an app-drawer entry: opened by name, as the stock launcher does.
+            if (!startSafely(Intent.makeMainActivity(e.component))) {
+                Toast.makeText(this, getString(R.string.cannot_open, e.label), Toast.LENGTH_SHORT).show();
+            }
+            return;
+        }
         try {
             Rect bounds = new Rect();
             from.getGlobalVisibleRect(bounds);
@@ -721,7 +780,7 @@ public final class HomeActivity extends Activity
         float tank = tank();
         String hint = carDataHint();
         if (fuelCard != null) fuelCard.set(can.fuel, tank, hint);
-        if (tyreCard != null) tyreCard.set(can.tyres, hint);
+        if (tyreCard != null) tyreCard.set(can.tyres, can.tyresPsi, hint);
         if (vehicle != null) vehicle.setCar(can, tank, hint);
         showVehicleSpeed();
         if (shown == settingsPanel) refreshSettings();
@@ -781,6 +840,7 @@ public final class HomeActivity extends Activity
         rowHome.setValue(getString(isDefault ? R.string.home_is_default : R.string.home_make_default), !isDefault, 0);
         boolean carOn = prefs.getBoolean(PREF_CAR, true);
         rowCar.setValue(getString(carOn ? R.string.on : R.string.off), carOn, 0);
+        rowUiStyle.setValue(getString(Chrome.style == Chrome.GLASS ? R.string.ui_glass : R.string.ui_simple), false, 0);
         boolean hologram = prefs.getBoolean(PREF_HOLOGRAM, false);
         rowStyle.setValue(getString(hologram ? R.string.style_hologram : R.string.style_photo), false, 0);
         rowTop.setValue(getString(TOP_NAMES[choice(PREF_TOP_WIDGET, TOP_NAMES)]), false, 0);

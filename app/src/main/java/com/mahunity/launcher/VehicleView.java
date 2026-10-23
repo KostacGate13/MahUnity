@@ -81,10 +81,10 @@ final class VehicleView extends View {
             values[4] = dash;
         } else {
             StringBuilder t = new StringBuilder();
-            for (float bar : can.tyres) {
-                t.append(t.length() == 0 ? "" : " · ").append(bar < 0 ? dash : String.format(l, "%.1f", bar));
+            for (float p : can.tyres) {
+                t.append(t.length() == 0 ? "" : " · ").append(p < 0 ? dash : TyreCard.format(p, can.tyresPsi));
             }
-            values[4] = t.append(" bar").toString();
+            values[4] = t.append(can.tyresPsi ? " psi" : " kPa").toString();
         }
         missingText = hint == null ? "" : hint;
         statusText = can.state == CanBus.MISSING ? c.getString(R.string.can_missing)
@@ -95,13 +95,14 @@ final class VehicleView extends View {
 
     @Override protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         pad = Math.min(w, h) * 0.07f;
-        caption.setTextSize(h * 0.034f);
+        float u = Chrome.unit(getContext());
+        caption.setTextSize(Math.min(h * 0.04f, u * Chrome.TYPE_CAPTION));
         float size = Math.min(h * 0.2f, w * 0.3f);
         digits.setTextSize(size);
         unit.setTextSize(size * 0.17f);
-        label.setTextSize(h * 0.03f);
-        value.setTextSize(h * 0.042f);
-        note.setTextSize(h * 0.031f);
+        label.setTextSize(Math.min(h * 0.04f, u * Chrome.TYPE_CAPTION));
+        value.setTextSize(Math.min(h * 0.055f, u * Chrome.TYPE_BODY));
+        note.setTextSize(Math.min(h * 0.036f, u * Chrome.TYPE_CAPTION * 0.95f));
         captionY = pad + caption.getTextSize();
         digitsY = captionY + size * 0.18f + size * 0.71f;
         noteY = digitsY + note.getTextSize() * 1.8f;

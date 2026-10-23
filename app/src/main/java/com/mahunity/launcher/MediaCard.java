@@ -43,6 +43,8 @@ final class MediaCard extends ViewGroup {
 
     private float radius, artRadius, pad, textX, textWidth, sourceY, titleY, artistY;
     private float trackLeft, trackRight, trackY, trackH;
+    /** Where the art and text end: the keys sit centred in the space below (stacked cards). */
+    private float contentBottom;
     private int keySize, playSize;
     /** A long, low card (portrait screens): one row with the keys at the right end. Otherwise keys in a row below. */
     private boolean wide;
@@ -61,10 +63,10 @@ final class MediaCard extends ViewGroup {
         artFrame.setStyle(Paint.Style.STROKE);
         source.setTypeface(Chrome.MEDIUM);
         source.setColor(Chrome.TEXT_DIM);
-        source.setLetterSpacing(0.25f);
-        title.setTypeface(Chrome.REGULAR);
+        source.setLetterSpacing(0.16f);
+        title.setTypeface(Chrome.MEDIUM);
         title.setColor(Chrome.TEXT);
-        artist.setTypeface(Chrome.LIGHT);
+        artist.setTypeface(Chrome.REGULAR);
         artist.setColor(Chrome.TEXT_DIM);
         track.setColor(0x26FFFFFF);
     }
@@ -91,11 +93,11 @@ final class MediaCard extends ViewGroup {
 
     @Override protected void onMeasure(int widthSpec, int heightSpec) {
         int w = MeasureSpec.getSize(widthSpec), h = MeasureSpec.getSize(heightSpec);
-        wide = w > h * 2.6f;
+        wide = w > h * 3.4f;
         pad = h * (wide ? 0.13f : 0.09f);
-        float art = wide ? h - 2 * pad : h * 0.42f;
+        float art = wide ? h - 2 * pad : h * 0.44f;
         artBox.set(pad, pad, pad + art, pad + art);
-        keySize = Math.round(h * (wide ? 0.4f : 0.25f));
+        keySize = Math.round(Math.min(h * (wide ? 0.42f : 0.27f), Chrome.unit(getContext()) * 0.085f));
         playSize = Math.round(keySize * 1.18f);
         textX = artBox.right + pad * 0.9f;
         float right = w - pad;
@@ -118,7 +120,7 @@ final class MediaCard extends ViewGroup {
         int row = 2 * keySize + playSize + 2 * gap();
         // The keys: at the right end of a wide card, otherwise centred in the space under the art.
         int x = wide ? Math.round(w - pad) - row : (w - row) / 2;
-        int cy = wide ? h / 2 : Math.round((artBox.bottom + h - pad) / 2f);
+        int cy = wide ? h / 2 : Math.round((contentBottom + h - pad) / 2f);
         prev.layout(x, cy - keySize / 2, x + keySize, cy - keySize / 2 + keySize);
         x += keySize + gap();
         play.layout(x, cy - playSize / 2, x + playSize, cy - playSize / 2 + playSize);
@@ -129,7 +131,7 @@ final class MediaCard extends ViewGroup {
     @Override protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         float stroke = Math.max(1f, h * 0.006f);
         box.set(stroke / 2, stroke / 2, w - stroke / 2, h - stroke / 2);
-        radius = Math.min(h, w) * 0.07f;
+        radius = Chrome.radius(getContext());
         artRadius = radius * 0.6f;
         fill.setShader(Chrome.panel(0, h));
         frame.setStrokeWidth(stroke);
@@ -142,18 +144,25 @@ final class MediaCard extends ViewGroup {
         note.setShader(Chrome.metal(artBox.centerY() - noteSize / 2f, artBox.centerY() + noteSize / 2f));
         note.setColor(Color.WHITE);
 
-        // Source, title and artist from the top of the art; the progress line along its bottom.
-        float t = artBox.height();
-        source.setTextSize(t * 0.13f);
-        title.setTextSize(t * 0.22f);
-        artist.setTextSize(t * 0.17f);
+        // Source, title and artist from the top of the art, in the screen's type sizes unless the art is too
+        // short for them; the progress line along its bottom.
+        float u = Chrome.unit(getContext());
+        float block = u * (Chrome.TYPE_CAPTION + Chrome.TYPE_HEADLINE + Chrome.TYPE_BODY);
+        // Wide: the text fits beside the art. Stacked: it may run below the art, as long as the keys still fit.
+        float room = wide ? artBox.height() * 0.8f : (h - 2 * pad - playSize - pad * 0.5f) * 0.75f;
+        float scale = Math.min(1f, room / block);
+        source.setTextSize(u * Chrome.TYPE_CAPTION * scale);
+        title.setTextSize(u * Chrome.TYPE_HEADLINE * scale);
+        artist.setTextSize(u * Chrome.TYPE_BODY * scale);
         sourceY = artBox.top + source.getTextSize() * 0.9f;
-        titleY = sourceY + title.getTextSize() * 1.4f;
-        artistY = titleY + artist.getTextSize() * 1.45f;
+        titleY = sourceY + title.getTextSize() * 1.3f;
+        artistY = titleY + artist.getTextSize() * 1.4f;
         trackH = Math.max(1.5f, h * 0.008f);
         trackLeft = textX;
         trackRight = textX + textWidth;
-        trackY = artBox.bottom - trackH;
+        // Along the art's bottom edge, or under the artist when the text runs longer than the art.
+        trackY = Math.max(artBox.bottom - trackH, artistY + artist.getTextSize() * 0.55f);
+        contentBottom = Math.max(artBox.bottom, trackY + trackH);
         fitArt();
         fit();
     }

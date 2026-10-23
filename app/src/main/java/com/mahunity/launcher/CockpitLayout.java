@@ -3,10 +3,8 @@ package com.mahunity.launcher;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Paint;
-import android.graphics.RadialGradient;
 import android.graphics.Rect;
 import android.graphics.RectF;
-import android.graphics.Shader;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.animation.DecelerateInterpolator;
@@ -21,6 +19,7 @@ final class CockpitLayout extends ViewGroup {
 
     final TopBar top;
     final ChromeButton gear;
+    final Header header;
     /** Home's widgets, picked in Settings: the clock or the speedometer-clock, and the media card or another. */
     final View homeTop, homeBottom;
     final MediaCard media;
@@ -29,12 +28,14 @@ final class CockpitLayout extends ViewGroup {
     final CarView car;
     final DockBar dock;
 
-    private final Rect topRect = new Rect(), gearRect = new Rect(), dockRect = new Rect(), stageRect = new Rect();
+    private final Rect topRect = new Rect(), gearRect = new Rect(), headerRect = new Rect(), dockRect = new Rect();
+    private final Rect stageRect = new Rect();
     private final Rect clockRect = new Rect(), clockGlass = new Rect(), bottomRect = new Rect(), mediaRect = new Rect();
     private final Rect vehicleRect = new Rect();
     private final Rect[] sourceRects;
     private final RectF glass = new RectF();
     private final Paint background = new Paint();
+    private final Paint backgroundGlow = new Paint();
     private final Paint glassFill = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint glassEdge = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final DecelerateInterpolator ease = new DecelerateInterpolator(1.6f);
@@ -42,11 +43,12 @@ final class CockpitLayout extends ViewGroup {
     private int tab = HOME;
 
     /** homeBottom may be the media card itself; otherwise the media card shows on the Music tab only. */
-    CockpitLayout(Context context, TopBar top, ChromeButton gear, View homeTop, View homeBottom, MediaCard media,
-                  TileView[] sources, VehicleView vehicle, CarView car, DockBar dock) {
+    CockpitLayout(Context context, TopBar top, ChromeButton gear, Header header, View homeTop, View homeBottom,
+                  MediaCard media, TileView[] sources, VehicleView vehicle, CarView car, DockBar dock) {
         super(context);
         this.top = top;
         this.gear = gear;
+        this.header = header;
         this.homeTop = homeTop;
         this.homeBottom = homeBottom;
         this.media = media;
@@ -61,6 +63,7 @@ final class CockpitLayout extends ViewGroup {
         addView(car);
         addView(top);
         addView(gear);
+        addView(header);
         addView(homeTop);
         if (homeBottom != media) addView(homeBottom);
         addView(media);
@@ -78,6 +81,7 @@ final class CockpitLayout extends ViewGroup {
     void showTab(int next, boolean animate) {
         tab = next;
         homeTop.setVisibility(next == HOME ? VISIBLE : GONE);
+        top.hideClock(next == HOME && homeTop instanceof ClockView);
         homeBottom.setVisibility(next == HOME ? VISIBLE : GONE);
         media.setVisibility(next == MUSIC || (next == HOME && homeBottom == media) ? VISIBLE : GONE);
         for (TileView t : sources) t.setVisibility(next == MUSIC ? VISIBLE : GONE);
@@ -108,6 +112,7 @@ final class CockpitLayout extends ViewGroup {
         place(w, h);
         measure(top, topRect);
         measure(gear, gearRect);
+        measure(header, headerRect);
         measure(dock, dockRect);
         measure(car, stageRect);
         measure(homeTop, clockRect);
@@ -127,25 +132,28 @@ final class CockpitLayout extends ViewGroup {
         boolean portrait = h > w;
         float s = Math.min(h, w * 0.6f);
         int pad = Math.round(s * 0.035f);
-        int barH = Math.round(s * 0.11f);
-        int dockH = Math.round(s * 0.15f);
+        int barH = Math.round(s * 0.1f);
+        int headerH = Math.round(s * 0.1f);
+        int dockH = Math.round(s * 0.13f);
         topRect.set(0, 0, w, barH);
         top.setInset(pad);
         int g = Math.round(barH * 0.62f);
         gearRect.set(w - pad - g, (barH - g) / 2, w - pad, (barH - g) / 2 + g);
         top.showClock(w - gearRect.left + pad);
+        headerRect.set(0, barH, w, barH + headerH);
+        header.setInset(pad);
         dockRect.set(0, h - dockH, w, h);
 
-        int contentTop = barH + Math.round(pad * 0.8f);
+        int contentTop = barH + headerH;
         int contentBottom = h - dockH - Math.round(pad * 0.8f);
         Rect pane = new Rect();
         if (!portrait) {
-            int paneRight = Math.round(w * 0.38f);
+            int paneRight = Math.round(w * 0.42f);
             pane.set(pad, contentTop, paneRight, contentBottom);
-            stageRect.set(paneRight, barH, w, h - dockH);
+            stageRect.set(paneRight, contentTop, w, h - dockH);
         } else {
             int stageBottom = contentTop + Math.round((contentBottom - contentTop) * 0.4f);
-            stageRect.set(0, barH, w, stageBottom);
+            stageRect.set(0, contentTop, w, stageBottom);
             pane.set(pad, stageBottom + pad, w - pad, contentBottom);
         }
         int ph = pane.height(), gap = Math.round(pad * 0.7f);
@@ -166,13 +174,14 @@ final class CockpitLayout extends ViewGroup {
             mediaRect.set(bottomRect);
         }
         vehicleRect.set(pane);
-        glassRadius = s * 0.025f;
+        glassRadius = Chrome.radius(getContext());
     }
 
     @Override protected void onLayout(boolean changed, int l, int t, int r, int b) {
         layout(car, stageRect);
         layout(top, topRect);
         layout(gear, gearRect);
+        layout(header, headerRect);
         layout(dock, dockRect);
         layout(homeTop, clockRect);
         if (homeBottom != media) layout(homeBottom, bottomRect);
@@ -186,17 +195,15 @@ final class CockpitLayout extends ViewGroup {
     }
 
     @Override protected void onSizeChanged(int w, int h, int oldw, int oldh) {
-        background.setShader(new RadialGradient(w * 0.68f, h * 0.45f, Math.max(w, h) * 0.7f,
-                new int[] {0xFF15191D, 0xFF08090B, 0xFF000000}, new float[] {0f, 0.55f, 1f}, Shader.TileMode.CLAMP));
+        Chrome.resetBackground(background);
         glassFill.setShader(Chrome.panel(0, h));
-        glassFill.setAlpha(0xC8);
         glassEdge.setStrokeWidth(Math.max(1f, Math.min(w, h) * 0.0015f));
         glassEdge.setShader(Chrome.edge(0, 0, w, h));
         glassEdge.setAlpha(0x90);
     }
 
     @Override protected void onDraw(Canvas c) {
-        c.drawRect(0, 0, getWidth(), getHeight(), background);
+        Chrome.background(c, getWidth(), getHeight(), background, backgroundGlow);
         // Glass under the cards that have none of their own (the media card, widgets and tiles draw theirs).
         if (tab == HOME) drawGlass(c, clockGlass);
         if (tab == VEHICLE) drawGlass(c, vehicleRect);

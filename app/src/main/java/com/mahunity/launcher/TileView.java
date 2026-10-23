@@ -12,32 +12,34 @@ import android.text.TextPaint;
 import android.text.TextUtils;
 import android.view.View;
 
-/** A home tile: black glass in a polished frame, a line icon in metal, the name spaced out, the app it opens below. */
+/**
+ * A home tile: a card with a line icon, the name in large type and the app it opens below it. Sizes come from the
+ * screen, not the tile, so a big tile gets the same readable type as a small one. Tall tiles stack icon over
+ * text in the left column; wide ones put the icon beside the text.
+ */
 final class TileView extends View {
     private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint frame = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint lit = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint glow = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint sheen = new Paint();
     private final Paint icon = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
-    private final Paint dash = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final TextPaint label = new TextPaint(Paint.ANTI_ALIAS_FLAG);
     private final TextPaint note = new TextPaint(Paint.ANTI_ALIAS_FLAG);
     private final RectF box = new RectF();
     private final int iconRes;
     private final String title;
     private String subtitle = "";
-    private CharSequence subtitleFit = "";
+    private CharSequence titleFit = "", subtitleFit = "";
     private Bitmap mask;
     private Shader metal;
-    private float radius, iconX, iconY, iconSize, labelY, noteY, dashY, dashHalf, sheenY;
+    private float radius, iconX, iconY, textX, textWidth, labelY, noteY, labelSize;
     private int glowColor;
     private boolean sunk;
 
     TileView(Context context, int iconRes, String title) {
         super(context);
         this.iconRes = iconRes;
-        this.title = Text.upper(title);
+        this.title = title;
         setClickable(true);
         setLongClickable(true);
         setFocusable(true);
@@ -46,12 +48,8 @@ final class TileView extends View {
         lit.setStyle(Paint.Style.STROKE);
         label.setTypeface(Chrome.MEDIUM);
         label.setColor(Chrome.TEXT);
-        label.setLetterSpacing(0.16f);
-        label.setTextAlign(Paint.Align.CENTER);
-        note.setTypeface(Chrome.LIGHT);
+        note.setTypeface(Chrome.REGULAR);
         note.setColor(Chrome.TEXT_DIM);
-        note.setTextAlign(Paint.Align.CENTER);
-        dash.setStrokeCap(Paint.Cap.ROUND);
     }
 
     void setSubtitle(String s) {
@@ -63,38 +61,48 @@ final class TileView extends View {
     }
 
     private void fit() {
-        subtitleFit = TextUtils.ellipsize(subtitle, note, getWidth() * 0.84f, TextUtils.TruncateAt.END);
+        // A long name is set up to a fifth smaller before it is cut short.
+        label.setTextSize(labelSize);
+        float wide = label.measureText(title);
+        if (wide > textWidth && textWidth > 0) label.setTextSize(Math.max(labelSize * 0.8f, labelSize * textWidth / wide));
+        titleFit = TextUtils.ellipsize(title, label, textWidth, TextUtils.TruncateAt.END);
+        subtitleFit = TextUtils.ellipsize(subtitle, note, textWidth, TextUtils.TruncateAt.END);
     }
 
     @Override protected void onSizeChanged(int w, int h, int oldw, int oldh) {
-        float s = Math.min(w, h);
-        float stroke = Math.max(1f, s * 0.006f);
+        float u = Chrome.unit(getContext());
+        float stroke = Math.max(1f, u * 0.0022f);
         box.set(stroke / 2, stroke / 2, w - stroke / 2, h - stroke / 2);
-        radius = s * 0.05f;
+        radius = Chrome.radius(getContext());
         fill.setShader(Chrome.panel(0, h));
         frame.setStrokeWidth(stroke);
         frame.setShader(Chrome.edge(0, 0, w, h));
-        lit.setStrokeWidth(stroke * 1.6f);
-        sheenY = stroke * 2.5f;
-        sheen.setShader(Chrome.hairline(radius, 0, w - radius, 0, 0x55));
+        lit.setStrokeWidth(stroke * 2f);
 
-        int size = Math.round(s * 0.30f);
-        iconSize = size;
-        iconX = (w - size) / 2f;
-        iconY = h * 0.40f - size / 2f;
+        float pad = u * 0.032f;
+        // Type and icon from the screen, trimmed only when a tile is too small to hold them.
+        float scale = Math.min(1f, Math.min(w, h) / (u * 0.3f));
+        int size = Math.round(u * Chrome.ICON * scale);
+        labelSize = u * Chrome.TYPE_HEADLINE * scale;
+        label.setTextSize(labelSize);
+        note.setTextSize(u * Chrome.TYPE_CAPTION * 1.15f * scale);
+        boolean wide = w > h * 1.3f;
+        if (wide) {
+            iconX = pad;
+            iconY = (h - size) / 2f;
+            textX = iconX + size + pad * 0.8f;
+            float block = label.getTextSize() * 0.75f + note.getTextSize() * 1.5f;
+            labelY = h / 2f - block / 2f + label.getTextSize() * 0.75f;
+        } else {
+            iconX = pad;
+            iconY = pad;
+            textX = pad;
+            labelY = h - pad - note.getTextSize() * 1.55f;
+        }
+        noteY = labelY + note.getTextSize() * 1.5f;
+        textWidth = Math.max(0f, w - textX - pad * 0.7f);
         mask = Chrome.mask(getContext(), iconRes, size);
         metal = Chrome.metal(iconY, iconY + size);
-
-        float labelSize = s * 0.072f;
-        label.setTextSize(labelSize);
-        float wide = label.measureText(title);
-        if (wide > w * 0.9f) label.setTextSize(labelSize * w * 0.9f / wide);
-        note.setTextSize(s * 0.056f);
-        labelY = h * 0.73f;
-        noteY = labelY + s * 0.085f;
-        dashY = h - s * 0.075f;
-        dashHalf = s * 0.08f;
-        dash.setStrokeWidth(Math.max(1.5f, s * 0.009f));
         glowColor = 0;
         fit();
     }
@@ -110,17 +118,16 @@ final class TileView extends View {
 
     @Override protected void onDraw(Canvas c) {
         boolean on = isPressed() || isFocused();
-        int w = getWidth();
+        int w = getWidth(), h = getHeight();
         c.drawRoundRect(box, radius, radius, fill);
         if (on) {
             if (glowColor != Chrome.accent) {
                 glowColor = Chrome.accent;
-                glow.setShader(new RadialGradient(w / 2f, iconY + iconSize / 2f, Math.max(w, getHeight()) * 0.6f,
-                        Chrome.withAlpha(glowColor, 0x40), 0, Shader.TileMode.CLAMP));
+                glow.setShader(new RadialGradient(iconX, iconY, Math.max(w, h) * 0.9f,
+                        Chrome.withAlpha(glowColor, 0x3A), 0, Shader.TileMode.CLAMP));
             }
             c.drawRoundRect(box, radius, radius, glow);
         }
-        c.drawRect(radius, sheenY, w - radius, sheenY + 1, sheen);
         c.drawRoundRect(box, radius, radius, frame);
         if (on) {
             lit.setColor(Chrome.withAlpha(Chrome.accent, 0xC0));
@@ -136,9 +143,8 @@ final class TileView extends View {
             }
             c.drawBitmap(mask, iconX, iconY, icon);
         }
-        c.drawText(title, w / 2f, labelY, label);
-        c.drawText(subtitleFit, 0, subtitleFit.length(), w / 2f, noteY, note);
-        dash.setColor(Chrome.withAlpha(Chrome.accent, on ? 0xFF : 0x66));
-        c.drawLine(w / 2f - dashHalf, dashY, w / 2f + dashHalf, dashY, dash);
+        label.setColor(on ? Chrome.accent : Chrome.TEXT);
+        c.drawText(titleFit, 0, titleFit.length(), textX, labelY, label);
+        c.drawText(subtitleFit, 0, subtitleFit.length(), textX, noteY, note);
     }
 }

@@ -5,7 +5,7 @@ import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.RectF;
 
-/** Tyre pressures around a plan of the car, nose up: front left, front right, rear left, rear right. */
+/** Tyre pressures around a plan of the car, nose up: front left, front right, rear left, rear right, in kPa or psi. */
 final class TyreCard extends InfoCard {
     private final Paint plan = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final RectF body = new RectF();
@@ -17,18 +17,23 @@ final class TyreCard extends InfoCard {
         super(context, R.string.widget_tyres);
         plan.setStyle(Paint.Style.STROKE);
         plan.setColor(0x80B4BAC1);
-        set(null, null);
+        set(null, false, null);
     }
 
-    /** bar, front left, front right, rear left, rear right; null: unknown, and hint says why (null: not yet). */
-    void set(float[] bar, String hint) {
+    /** Front left, front right, rear left, rear right, in kPa (psi: psi); null: unknown, and hint says why. */
+    void set(float[] pressure, boolean psi, String hint) {
         String dash = getContext().getString(R.string.unknown);
         for (int i = 0; i < 4; i++) {
-            values[i] = bar == null || bar[i] <= 0 ? dash : String.format(java.util.Locale.getDefault(), "%.1f", bar[i]);
+            values[i] = pressure == null || pressure[i] <= 0 ? dash : format(pressure[i], psi);
         }
-        noteText = bar != null ? getContext().getString(R.string.tyres_unit)
+        noteText = pressure != null ? (psi ? "psi" : "kPa")
                 : hint != null ? hint : getContext().getString(R.string.car_data_waiting);
         invalidate();
+    }
+
+    /** kPa in whole numbers, psi to one decimal. */
+    static String format(float v, boolean psi) {
+        return psi ? String.format(java.util.Locale.getDefault(), "%.1f", v) : String.valueOf(Math.round(v));
     }
 
     @Override protected void laidOut(int w, int h) {

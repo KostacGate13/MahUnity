@@ -8,26 +8,23 @@ import android.text.format.DateFormat;
 import android.view.View;
 
 import java.text.DateFormatSymbols;
-import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Locale;
 import java.util.TimeZone;
 
-/** The left-hand panel: a greeting, the time in thin metal digits, the date, and the GPS speed when it is on. */
+/** The time in large digits (the header above carries the greeting and the date), and the GPS speed when on. */
 final class ClockView extends View {
-    private final TextPaint greet = new TextPaint(Paint.ANTI_ALIAS_FLAG);
     private final TextPaint time = new TextPaint(Paint.ANTI_ALIAS_FLAG);
     private final TextPaint suffix = new TextPaint(Paint.ANTI_ALIAS_FLAG);
-    private final TextPaint date = new TextPaint(Paint.ANTI_ALIAS_FLAG);
     private final TextPaint speed = new TextPaint(Paint.ANTI_ALIAS_FLAG);
     private final TextPaint unit = new TextPaint(Paint.ANTI_ALIAS_FLAG);
     private final Paint line = new Paint();
     private final String unitText;
-    private String greetText = "", timeText = "", suffixText = "", dateText = "";
+    private String timeText = "", suffixText = "";
     /** Null while the speed row is off. */
     private String speedText;
     private String headingText = "";
-    private float greetY, timeY, dateY, lineY, speedY, lineH;
+    private float timeY, lineY, speedY, lineH;
     private boolean ticking;
 
     private final Runnable tick = new Runnable() {
@@ -40,16 +37,10 @@ final class ClockView extends View {
     ClockView(Context context) {
         super(context);
         unitText = context.getString(R.string.kmh);
-        greet.setTypeface(Chrome.LIGHT);
-        greet.setColor(Chrome.TEXT_DIM);
-        greet.setLetterSpacing(0.3f);
-        time.setTypeface(Chrome.THIN);
+        time.setTypeface(Chrome.LIGHT);
         suffix.setTypeface(Chrome.LIGHT);
         suffix.setColor(Chrome.TEXT_DIM);
         suffix.setLetterSpacing(0.1f);
-        date.setTypeface(Chrome.REGULAR);
-        date.setColor(Chrome.TEXT);
-        date.setLetterSpacing(0.22f);
         speed.setTypeface(Chrome.LIGHT);
         unit.setTypeface(Chrome.LIGHT);
         unit.setColor(Chrome.TEXT_DIM);
@@ -100,10 +91,6 @@ final class ClockView extends View {
             timeText = String.format(locale, "%d:%02d", hour % 12 == 0 ? 12 : hour % 12, minute);
             suffixText = Text.upper(new DateFormatSymbols(locale).getAmPmStrings()[now.get(Calendar.AM_PM)]);
         }
-        dateText = Text.upper(new SimpleDateFormat("EEEE d MMMM", locale).format(now.getTime()));
-        int greeting = hour >= 5 && hour < 12 ? R.string.greet_morning
-                : hour >= 12 && hour < 18 ? R.string.greet_afternoon : R.string.greet_evening;
-        greetText = Text.upper(getContext().getString(greeting));
         invalidate();
     }
 
@@ -115,31 +102,25 @@ final class ClockView extends View {
         int w = getWidth(), h = getHeight();
         if (w == 0 || h == 0) return;
         // Everything is sized from the digits, which take what the panel's width and height allow.
-        float t = Math.min(h * 0.46f, w * 0.29f);
+        float t = Math.min(h * (speedText != null ? 0.5f : 0.62f), w * 0.3f);
         time.setTextSize(t);
         float wide = time.measureText("00:00");
         if (wide > w * 0.82f) {
             t *= w * 0.82f / wide;
             time.setTextSize(t);
         }
-        greet.setTextSize(t * 0.13f);
         suffix.setTextSize(t * 0.18f);
-        date.setTextSize(t * 0.14f);
         speed.setTextSize(t * 0.36f);
         unit.setTextSize(t * 0.13f);
 
-        // Greeting, time, date and hairline, then the speed row when it is on; cap heights are about 0.71em.
-        float greetCap = greet.getTextSize() * 0.71f;
+        // The time, then a hairline and the speed row when it is on; cap heights are about 0.71em.
         float timeCap = t * 0.71f;
-        float dateCap = date.getTextSize() * 0.71f;
         float speedCap = speed.getTextSize() * 0.71f;
-        float block = greetCap + t * 0.15f + timeCap + t * 0.2f + dateCap + t * 0.17f;
-        if (speedText != null) block += t * 0.24f + speedCap;
-        float top = Math.max(0f, (h - block) * (speedText != null ? 0.5f : 0.4f));
-        greetY = top + greetCap;
-        timeY = greetY + t * 0.15f + timeCap;
-        dateY = timeY + t * 0.2f + dateCap;
-        lineY = dateY + t * 0.17f;
+        float block = timeCap;
+        if (speedText != null) block += t * 0.22f + t * 0.24f + speedCap;
+        float top = Math.max(0f, (h - block) * 0.5f);
+        timeY = top + timeCap;
+        lineY = timeY + t * 0.22f;
         speedY = lineY + t * 0.24f + speedCap;
         lineH = Math.max(1f, t * 0.008f);
         time.setShader(Chrome.metal(timeY - timeCap, timeY));
@@ -148,16 +129,14 @@ final class ClockView extends View {
     }
 
     @Override protected void onDraw(Canvas c) {
-        c.drawText(greetText, 0, greetY, greet);
-        // Thin digits sit a little inside their advance; pull them back so they line up with the text below.
+        // Light digits sit a little inside their advance; pull them back so they line up with the text below.
         float nudge = time.getTextSize() * 0.03f;
         c.drawText(timeText, -nudge, timeY, time);
         if (!suffixText.isEmpty()) {
             c.drawText(suffixText, time.measureText(timeText) + suffix.getTextSize() * 0.5f, timeY, suffix);
         }
-        c.drawText(dateText, 0, dateY, date);
-        c.drawRect(0, lineY, getWidth(), lineY + lineH, line);
         if (speedText != null) {
+            c.drawRect(0, lineY, getWidth(), lineY + lineH, line);
             c.drawText(speedText, -speed.getTextSize() * 0.02f, speedY, speed);
             float x = speed.measureText(speedText) + unit.getTextSize() * 0.6f;
             c.drawText(unitText, x, speedY, unit);

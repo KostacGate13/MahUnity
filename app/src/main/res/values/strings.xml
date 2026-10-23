@@ -111,7 +111,6 @@
     <string name="tank_value">%1$s L</string>
     <string name="fuel_litres">%1$s L of %2$s L</string>
     <string name="fuel_left">fuel left</string>
-    <string name="tyres_unit">bar</string>
     <string name="trip_distance">km</string>
     <string name="trip_time">time</string>
     <string name="trip_average">km/h avg</string>
@@ -123,4 +122,8 @@
     <string name="car_data_waiting">Waiting for Car Info</string>
     <string name="car_data_permission">Turn on: Settings ▸ Car Info data</string>
     <string name="car_data_help">Fuel, battery, coolant and tyre pressures come from NWD\'s Car Info, through the system log; Cockpit never touches the CANBus.\n\nAndroid lets an app read that log only with a permission given once over ADB:\n\nadb shell pm grant %1$s android.permission.READ_LOGS\n\nOn Android 13 and later the system also asks for access to the logs each time the unit starts: allow it.</string>
+    <string name="header_sources">Audio sources</string>
+    <string name="set_ui_style">Look</string>
+    <string name="ui_glass">Glass</string>
+    <string name="ui_simple">Simple</string>
 </resources>

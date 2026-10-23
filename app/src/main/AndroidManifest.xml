@@ -32,8 +32,13 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.APP_MUSIC" />
         </intent>
-        <!-- NWD head units: the CANBus service read by CanBus. -->
+        <!-- NWD head units: the CANBus service read by CanBus, and the apps the tiles open directly (Apps.HIDDEN). -->
         <package android:name="com.nwd.can.setting" />
+        <package android:name="com.nwd.radio" />
+        <package android:name="com.nwd.android.phone" />
+        <package android:name="com.nwd.bt.music" />
+        <package android:name="com.nwd.android.music.ui" />
+        <package android:name="com.zjinnova.zlink" />
     </queries>
 
     <application

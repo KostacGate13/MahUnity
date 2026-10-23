@@ -63,8 +63,12 @@ final class CanBus {
     float fuel = -1;
     /** Volts and °C, from Car Info's log. */
     float battery = -1, coolant = Float.NaN;
-    /** bar, front left, front right, rear left, rear right (below zero: that sensor unknown); null until known. */
+    /**
+     * Tyre pressures in the car's own unit (tyresPsi: psi, else kPa, as Car Info shows them), front left, front
+     * right, rear left, rear right; below zero: that sensor unknown; null until known.
+     */
     float[] tyres;
+    boolean tyresPsi;
     /** The second source, Car Info's log. */
     final NwdLog log;
 
@@ -238,8 +242,9 @@ final class CanBus {
 
     /**
      * A Raise frame of type 4A from Car Info's log, decoded as GM's Raise decoder in Car Info does: payload 04 is
-     * coolant (+40), fuel in whole litres (third byte) and battery voltage (bytes four and five); 01 is the tyre
-     * pressures in steps of 4 kPa, front left, front right, rear left, rear right.
+     * coolant (+40), fuel in whole litres (third byte) and battery voltage (bytes four and five); 01 is the unit
+     * the car is set to (1: psi) and the tyre pressures in steps of 4 kPa, front left, front right, rear left,
+     * rear right.
      */
     void decodeCarState(byte[] f) {
         if (f.length < OFFSET + 7) return;
@@ -249,12 +254,13 @@ final class CanBus {
             fuel = litres == 0xFF ? -1 : litres;
             battery = volts(u16(f, OFFSET + 4));
         } else if (f[OFFSET] == 1) {
-            float[] bar = new float[4];
+            tyresPsi = f[OFFSET + 1] == 1;
+            float[] p = new float[4];
             for (int i = 0; i < 4; i++) {
                 int v = f[OFFSET + 2 + i] & 0xFF;
-                bar[i] = v == 0 || v == 0xFF ? -1 : v * 4 / 100f;
+                p[i] = v == 0 || v == 0xFF ? -1 : tyresPsi ? v * 4 / 6.895f : v * 4;
             }
-            tyres = bar;
+            tyres = p;
         } else {
             return;
         }
