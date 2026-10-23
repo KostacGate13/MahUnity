@@ -69,4 +69,10 @@
     <string name="set_system">System settings</string>
     <string name="open">Open</string>
     <string name="set_version">Version</string>
+
+    <string name="tab_home">Home</string>
+    <string name="tab_vehicle">Vehicle</string>
+    <string name="set_car">Show the car</string>
+    <string name="can_pending">CANBus: not connected yet</string>
+    <string name="speed_off_hint">Switch on: Settings ▸ GPS speed</string>
 </resources>

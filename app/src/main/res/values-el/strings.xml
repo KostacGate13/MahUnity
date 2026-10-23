@@ -67,4 +67,10 @@
     <string name="set_system">Ρυθμίσεις συστήματος</string>
     <string name="open">Άνοιγμα</string>
     <string name="set_version">Έκδοση</string>
+
+    <string name="tab_home">Αρχική</string>
+    <string name="tab_vehicle">Όχημα</string>
+    <string name="set_car">Εμφάνιση αυτοκινήτου</string>
+    <string name="can_pending">CANBus: δεν έχει συνδεθεί ακόμα</string>
+    <string name="speed_off_hint">Ενεργοποίηση: Ρυθμίσεις ▸ Ταχύτητα GPS</string>
 </resources>

@@ -28,12 +28,16 @@ import android.widget.Toast;
 
 import java.util.List;
 
-/** Home: the tiles, the clock and the media card, with all apps and Settings as sheets over it. */
+/**
+ * Home: the cockpit with the car (or, with the car switched off, the classic tiles), with all apps and
+ * Settings as sheets over it.
+ */
 public final class HomeActivity extends Activity implements Apps.Listener, MediaWatcher.Listener, SpeedWatcher.Listener {
     private static final int REQUEST_LOCATION = 1;
     private static final String PREF_ACCENT = "accent";
     private static final String PREF_SPEED = "speed";
     private static final String PREF_NAME = "name";
+    private static final String PREF_CAR = "car";
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final AppEntry[] slotApps = new AppEntry[Slots.COUNT];
@@ -45,14 +49,18 @@ public final class HomeActivity extends Activity implements Apps.Listener, Media
     private MediaWatcher media;
     private SpeedWatcher speed;
 
-    private HomeLayout home;
+    private ViewGroup home;
+    /** Null on the classic Home. */
+    private CockpitLayout cockpit;
+    private DockBar.Item[] tabItems;
+    private VehicleView vehicle;
     private TopBar top;
     private ClockView clock;
     private MediaCard card;
     private TileView[] tiles;
     private Panel appsPanel, settingsPanel, shown;
     private AppsGrid grid;
-    private SettingsRows.Row rowHome, rowAmbient, rowSpeed, rowMedia, rowName;
+    private SettingsRows.Row rowHome, rowCar, rowAmbient, rowSpeed, rowMedia, rowName;
     private String[] headings;
     private int picking = -1;
 
@@ -118,24 +126,90 @@ public final class HomeActivity extends Activity implements Apps.Listener, Media
         });
 
         tiles = new TileView[Slots.COUNT];
-        for (int i = 0; i < Slots.COUNT; i++) {
-            final int slot = i;
-            TileView tile = new TileView(this, Slots.ICONS[i], getString(Slots.TITLES[i]));
-            tile.setOnClickListener(new View.OnClickListener() {
-                @Override public void onClick(View v) {
-                    openSlot(slot, v);
-                }
-            });
-            tile.setOnLongClickListener(new View.OnLongClickListener() {
-                @Override public boolean onLongClick(View v) {
-                    if (slot == Slots.APPS) showSettings();
-                    else showPicker(slot);
-                    return true;
-                }
-            });
-            tiles[i] = tile;
+        if (!prefs.getBoolean(PREF_CAR, true)) {
+            for (int i = 0; i < Slots.COUNT; i++) tiles[i] = tile(i);
+            home = new HomeLayout(this, top, gear, clock, card, tiles);
+            return;
         }
-        home = new HomeLayout(this, top, gear, clock, card, tiles);
+
+        // The cockpit: music sources as tiles on the Music tab, everything else in the dock.
+        TileView[] sources = {tile(Slots.MUSIC), tile(Slots.RADIO), tile(Slots.LINK)};
+        tiles[Slots.MUSIC] = sources[0];
+        tiles[Slots.RADIO] = sources[1];
+        tiles[Slots.LINK] = sources[2];
+        vehicle = new VehicleView(this);
+        CarView car = new CarView(this);
+        DockBar dock = new DockBar(this);
+        DockBar.Item homeTab = dock.add(R.drawable.ic_home, R.string.tab_home);
+        DockBar.Item nav = dock.add(R.drawable.ic_nav, R.string.slot_nav);
+        DockBar.Item musicTab = dock.add(R.drawable.ic_music, R.string.slot_music);
+        DockBar.Item phone = dock.add(R.drawable.ic_phone, R.string.slot_phone);
+        DockBar.Item vehicleTab = dock.add(R.drawable.ic_car, R.string.tab_vehicle);
+        DockBar.Item all = dock.add(R.drawable.ic_apps, R.string.slot_apps);
+        tabItems = new DockBar.Item[] {homeTab, musicTab, vehicleTab};
+        int[] tabs = {CockpitLayout.HOME, CockpitLayout.MUSIC, CockpitLayout.VEHICLE};
+        for (int i = 0; i < tabs.length; i++) {
+            final int tab = tabs[i];
+            tabItems[i].setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View v) {
+                    showTab(tab);
+                }
+            });
+        }
+        slotItem(nav, Slots.NAV);
+        slotItem(phone, Slots.PHONE);
+        slotItem(all, Slots.APPS);
+        cockpit = new CockpitLayout(this, top, gear, clock, card, sources, vehicle, car, dock);
+        home = cockpit;
+        showTab(CockpitLayout.HOME);
+    }
+
+    private TileView tile(final int slot) {
+        TileView tile = new TileView(this, Slots.ICONS[slot], getString(Slots.TITLES[slot]));
+        tile.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                openSlot(slot, v);
+            }
+        });
+        tile.setOnLongClickListener(new View.OnLongClickListener() {
+            @Override public boolean onLongClick(View v) {
+                if (slot == Slots.APPS) showSettings();
+                else showPicker(slot);
+                return true;
+            }
+        });
+        return tile;
+    }
+
+    /** A dock entry that opens a tile's app; a long press chooses the app, as on a tile. */
+    private void slotItem(DockBar.Item item, final int slot) {
+        item.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                openSlot(slot, v);
+            }
+        });
+        item.setOnLongClickListener(new View.OnLongClickListener() {
+            @Override public boolean onLongClick(View v) {
+                if (slot == Slots.APPS) showSettings();
+                else showPicker(slot);
+                return true;
+            }
+        });
+    }
+
+    private void showTab(int tab) {
+        boolean animate = cockpit.isLaidOut();
+        if (animate && tab == cockpit.tab()) return;
+        cockpit.showTab(tab, animate);
+        int[] order = {CockpitLayout.HOME, CockpitLayout.MUSIC, CockpitLayout.VEHICLE};
+        for (int i = 0; i < order.length; i++) tabItems[i].setChosen(order[i] == tab);
+    }
+
+    /** Back to the Home tab, the car turning to face you; false if it was there already. */
+    private boolean homeTab() {
+        if (cockpit == null || cockpit.tab() == CockpitLayout.HOME) return false;
+        showTab(CockpitLayout.HOME);
+        return true;
     }
 
     private void buildAppsPanel() {
@@ -195,6 +269,13 @@ public final class HomeActivity extends Activity implements Apps.Listener, Media
                 if (!startSafely(new Intent(Settings.ACTION_HOME_SETTINGS))) startSafely(new Intent(Settings.ACTION_SETTINGS));
             }
         });
+        rowCar = rows.add(R.string.set_car, new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                prefs.edit().putBoolean(PREF_CAR, !prefs.getBoolean(PREF_CAR, true)).commit();
+                // Home is built for one layout or the other; rebuilding it is simplest and rare.
+                recreate();
+            }
+        });
         rowAmbient = rows.add(R.string.set_ambient, new View.OnClickListener() {
             @Override public void onClick(View v) {
                 int next = (accentIndex() + 1) % Chrome.ACCENTS.length;
@@ -245,15 +326,21 @@ public final class HomeActivity extends Activity implements Apps.Listener, Media
     @Override protected void onResume() {
         super.onResume();
         clock.start();
+        top.start();
         media.start();
-        if (prefs.getBoolean(PREF_SPEED, false) && speed.allowed()) speed.start();
-        else clock.hideSpeed();
+        if (prefs.getBoolean(PREF_SPEED, false) && speed.allowed()) {
+            speed.start();
+        } else {
+            clock.hideSpeed();
+            if (vehicle != null) vehicle.setSpeed(null, null);
+        }
         if (shown == settingsPanel) refreshSettings();
     }
 
     @Override protected void onPause() {
         super.onPause();
         clock.stop();
+        top.stop();
         media.stop();
         speed.stop();
         handler.removeCallbacks(recheckMedia);
@@ -266,13 +353,15 @@ public final class HomeActivity extends Activity implements Apps.Listener, Media
 
     @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
-        // Home pressed while Home is showing: back to the tiles.
+        // Home pressed while Home is showing: close the sheet, or turn back to the Home tab.
         if (shown != null) hide(shown);
+        else homeTab();
     }
 
     @Override public void onBackPressed() {
-        // Home has nowhere to go back to; Back only closes a sheet.
+        // Home has nowhere to go back to; Back only closes a sheet or returns to the Home tab.
         if (shown != null) hide(shown);
+        else homeTab();
     }
 
     @Override public void onTrimMemory(int level) {
@@ -294,11 +383,13 @@ public final class HomeActivity extends Activity implements Apps.Listener, Media
         List<AppEntry> list = apps.list();
         for (int i = 0; i < Slots.COUNT; i++) {
             if (i == Slots.APPS) {
-                tiles[i].setSubtitle(appsCount());
+                if (tiles[i] != null) tiles[i].setSubtitle(appsCount());
                 continue;
             }
             slotApps[i] = slots.resolve(i, list);
-            tiles[i].setSubtitle(slotApps[i] != null ? slotApps[i].label : getString(R.string.hold_to_choose));
+            if (tiles[i] != null) {
+                tiles[i].setSubtitle(slotApps[i] != null ? slotApps[i].label : getString(R.string.hold_to_choose));
+            }
         }
     }
 
@@ -448,6 +539,7 @@ public final class HomeActivity extends Activity implements Apps.Listener, Media
             prefs.edit().putBoolean(PREF_SPEED, false).apply();
             speed.stop();
             clock.hideSpeed();
+            if (vehicle != null) vehicle.setSpeed(null, null);
         } else if (speed.allowed()) {
             enableSpeed();
         } else {
@@ -473,7 +565,9 @@ public final class HomeActivity extends Activity implements Apps.Listener, Media
             if (headings == null) headings = getResources().getStringArray(R.array.headings);
             heading = headings[Math.round(bearing / 45f) % headings.length];
         }
-        clock.setSpeed(kmh < 0 ? "–" : String.valueOf(Math.round(kmh)), heading);
+        String value = kmh < 0 ? "–" : String.valueOf(Math.round(kmh));
+        clock.setSpeed(value, heading);
+        if (vehicle != null) vehicle.setSpeed(value, heading);
     }
 
     // Settings
@@ -481,6 +575,8 @@ public final class HomeActivity extends Activity implements Apps.Listener, Media
     private void refreshSettings() {
         boolean isDefault = isDefaultHome();
         rowHome.setValue(getString(isDefault ? R.string.home_is_default : R.string.home_make_default), !isDefault, 0);
+        boolean carOn = prefs.getBoolean(PREF_CAR, true);
+        rowCar.setValue(getString(carOn ? R.string.on : R.string.off), carOn, 0);
         rowAmbient.setValue(getResources().getStringArray(R.array.ambient_names)[accentIndex()], false, Chrome.accent);
         boolean speedOn = prefs.getBoolean(PREF_SPEED, false);
         rowSpeed.setValue(getString(speedOn ? R.string.on : R.string.off), speedOn, 0);
