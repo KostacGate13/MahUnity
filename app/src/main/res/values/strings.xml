@@ -100,7 +100,8 @@
     <string name="set_top_widget">Upper widget</string>
     <string name="set_bottom_widget">Lower widget</string>
     <string name="widget_clock">Clock</string>
-    <string name="widget_gauge">Speedometer clock</string>
+    <string name="widget_gauge60">60s speedometer</string>
+    <string name="widget_gauge80">80s digital</string>
     <string name="widget_fuel">Fuel</string>
     <string name="widget_tyres">Tyre pressure</string>
     <string name="widget_trip">Trip</string>
@@ -129,4 +130,7 @@
         <item>Dark grey</item>
         <item>Light grey</item>
     </string-array>
+    <string name="set_frost">Glass</string>
+    <string name="frost_value">%1$d / 10</string>
+    <string name="frost_ends">0 clear  ·  10 frosted</string>
 </resources>

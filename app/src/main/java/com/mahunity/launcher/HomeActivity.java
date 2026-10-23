@@ -51,13 +51,14 @@ public final class HomeActivity extends Activity
     private static final String PREF_HOLOGRAM = "hologram";
     private static final String PREF_LOOK = "look";
     private static final String PREF_SHADE = "shade";
+    private static final String PREF_FROST = "frost";
     private static final String PREF_TOP_WIDGET = "top_widget";
     private static final String PREF_BOTTOM_WIDGET = "bottom_widget";
     private static final String PREF_TANK = "tank";
     /** Upper widget choices, and lower ones, in the order Settings lists them. */
-    private static final int TOP_CLOCK = 0, TOP_GAUGE = 1;
+    private static final int TOP_CLOCK = 0, TOP_GAUGE_60S = 1, TOP_GAUGE_80S = 2;
     private static final int BOTTOM_MUSIC = 0, BOTTOM_FUEL = 1, BOTTOM_TYRES = 2, BOTTOM_TRIP = 3;
-    private static final int[] TOP_NAMES = {R.string.widget_clock, R.string.widget_gauge};
+    private static final int[] TOP_NAMES = {R.string.widget_clock, R.string.widget_gauge60, R.string.widget_gauge80};
     private static final int[] BOTTOM_NAMES = {R.string.slot_music, R.string.widget_fuel, R.string.widget_tyres,
             R.string.widget_trip};
     /** The Corsa E's tank, in litres. */
@@ -91,7 +92,7 @@ public final class HomeActivity extends Activity
     private Header header;
     /** Whichever upper widget Settings picked; the other is null. */
     private ClockView clock;
-    private SpeedGauge gauge;
+    private GaugeView gauge;
     private MediaCard card;
     /** The lower widget, when it is not the media card; null otherwise. */
     private FuelCard fuelCard;
@@ -101,7 +102,7 @@ public final class HomeActivity extends Activity
     private TileView[] tiles;
     private Panel appsPanel, settingsPanel, shown;
     private AppsGrid grid;
-    private SettingsRows.Row rowHome, rowCar, rowUiStyle, rowShade, rowStyle, rowTop, rowBottom, rowTank, rowAmbient, rowSpeed, rowMedia,
+    private SettingsRows.Row rowHome, rowCar, rowUiStyle, rowFrost, rowShade, rowStyle, rowTop, rowBottom, rowTank, rowAmbient, rowSpeed, rowMedia,
             rowCarData, rowName;
     private String[] headings;
     /** The last GPS speed in km/h, or -1: none, or GPS is off or Home is not showing. */
@@ -148,6 +149,7 @@ public final class HomeActivity extends Activity
         Chrome.accent = Chrome.ACCENTS[accentIndex()];
         Chrome.style = prefs.getInt(PREF_LOOK, Chrome.CLASSIC) == Chrome.GLASS ? Chrome.GLASS : Chrome.CLASSIC;
         Chrome.shade = Math.max(0, Math.min(2, prefs.getInt(PREF_SHADE, 0)));
+        Chrome.frost = Math.max(0, Math.min(10, prefs.getInt(PREF_FROST, 3)));
         slots = new Slots(this, prefs);
         media = new MediaWatcher(this, this);
         speed = new SpeedWatcher(this, this);
@@ -178,7 +180,9 @@ public final class HomeActivity extends Activity
                 showSettings();
             }
         });
-        if (prefs.getInt(PREF_TOP_WIDGET, TOP_CLOCK) == TOP_GAUGE) gauge = new SpeedGauge(this);
+        int topWidget = prefs.getInt(PREF_TOP_WIDGET, TOP_CLOCK);
+        if (topWidget == TOP_GAUGE_60S) gauge = new Gauge60(this);
+        else if (topWidget == TOP_GAUGE_80S) gauge = new Gauge80(this);
         else clock = new ClockView(this);
         View upper = clock != null ? clock : gauge;
 
@@ -390,6 +394,11 @@ public final class HomeActivity extends Activity
             @Override public void onClick(View v) {
                 prefs.edit().putInt(PREF_LOOK, Chrome.style == Chrome.GLASS ? Chrome.CLASSIC : Chrome.GLASS).commit();
                 recreate();
+            }
+        });
+        rowFrost = rows.add(R.string.set_frost, new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                pickFrost();
             }
         });
         rowShade = rows.add(R.string.set_shade, new View.OnClickListener() {
@@ -841,6 +850,7 @@ public final class HomeActivity extends Activity
         rowCar.setValue(getString(carOn ? R.string.on : R.string.off), carOn, 0);
         rowUiStyle.setValue(getString(Chrome.style == Chrome.GLASS ? R.string.ui_glass : R.string.ui_classic), false, 0);
         rowShade.setValue(getResources().getStringArray(R.array.shade_names)[Chrome.shade], false, 0);
+        rowFrost.setValue(getString(R.string.frost_value, Chrome.frost), false, 0);
         boolean hologram = prefs.getBoolean(PREF_HOLOGRAM, false);
         rowStyle.setValue(getString(hologram ? R.string.style_hologram : R.string.style_photo), false, 0);
         rowTop.setValue(getString(TOP_NAMES[choice(PREF_TOP_WIDGET, TOP_NAMES)]), false, 0);
@@ -925,6 +935,47 @@ public final class HomeActivity extends Activity
                     }
                 })
                 .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    /** The glass from clear (0) to frosted (10) on a slider; Home is rebuilt with it, in the Glass look. */
+    private void pickFrost() {
+        int pad = Math.round(Chrome.unit(this) * 0.04f);
+        final android.widget.TextView value = new android.widget.TextView(this);
+        value.setText(getString(R.string.frost_value, Chrome.frost));
+        value.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, Chrome.unit(this) * Chrome.TYPE_BODY);
+        value.setGravity(android.view.Gravity.CENTER);
+        final android.widget.SeekBar bar = new android.widget.SeekBar(this);
+        bar.setMax(10);
+        bar.setProgress(Chrome.frost);
+        bar.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(android.widget.SeekBar s, int progress, boolean fromUser) {
+                value.setText(getString(R.string.frost_value, progress));
+            }
+
+            @Override public void onStartTrackingTouch(android.widget.SeekBar s) {}
+
+            @Override public void onStopTrackingTouch(android.widget.SeekBar s) {}
+        });
+        android.widget.TextView ends = new android.widget.TextView(this);
+        ends.setText(getString(R.string.frost_ends));
+        ends.setGravity(android.view.Gravity.CENTER);
+        android.widget.LinearLayout box = new android.widget.LinearLayout(this);
+        box.setOrientation(android.widget.LinearLayout.VERTICAL);
+        box.setPadding(pad, pad / 2, pad, 0);
+        box.addView(value);
+        box.addView(bar);
+        box.addView(ends);
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.set_frost)
+                .setView(box)
+                .setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener() {
+                    @Override public void onClick(DialogInterface dialog, int which) {
+                        prefs.edit().putInt(PREF_FROST, bar.getProgress()).putInt(PREF_LOOK, Chrome.GLASS).commit();
+                        recreate();
+                    }
+                })
                 .show();
     }
 

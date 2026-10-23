@@ -98,7 +98,8 @@
     <string name="set_top_widget">Επάνω widget</string>
     <string name="set_bottom_widget">Κάτω widget</string>
     <string name="widget_clock">Ρολόι</string>
-    <string name="widget_gauge">Ταχύμετρο-ρολόι</string>
+    <string name="widget_gauge60">Ταχύμετρο 60s</string>
+    <string name="widget_gauge80">Ψηφιακό 80s</string>
     <string name="widget_fuel">Βενζίνη</string>
     <string name="widget_tyres">Πίεση ελαστικών</string>
     <string name="widget_trip">Ταξίδι</string>
@@ -127,4 +128,7 @@
         <item>Σκούρο γκρι</item>
         <item>Ανοιχτό γκρι</item>
     </string-array>
+    <string name="set_frost">Γυαλί: διαφάνεια</string>
+    <string name="frost_value">%1$d / 10</string>
+    <string name="frost_ends">0 εντελώς διάφανο  ·  10 θολό (frosted)</string>
 </resources>

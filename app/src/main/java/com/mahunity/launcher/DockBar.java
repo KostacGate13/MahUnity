@@ -52,7 +52,8 @@ final class DockBar extends ViewGroup {
     @Override protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         // Glass: nearly clear over the background. Classic: black glass.
         glass.setShader(Chrome.style == Chrome.GLASS
-                ? new LinearGradient(0, 0, 0, h, 0x16FFFFFF, 0x04FFFFFF, Shader.TileMode.CLAMP)
+                ? new LinearGradient(0, 0, 0, h, Chrome.withAlpha(0xFFFFFF, Math.max(0x06, Chrome.frosted(0x16))),
+                        Chrome.withAlpha(0xFFFFFF, Chrome.frosted(0x04)), Shader.TileMode.CLAMP)
                 : new LinearGradient(0, 0, 0, h, 0xF0101215, 0xFA040506, Shader.TileMode.CLAMP));
         line.setShader(Chrome.hairline(0, 0, w, 0, 0xB0));
         stripColor = 0;

@@ -26,6 +26,8 @@ final class Chrome {
     static int style = CLASSIC;
     /** Background: 0 pitch black, 1 dark grey, 2 lighter grey. Set with style. */
     static int shade = 0;
+    /** How frosted the glass is, 0 (clear: only the rim shows) to 10 (milky). Set with style. */
+    static int frost = 3;
 
     static final int SILVER_LIGHT = 0xFFF4F6F8;
     static final int SILVER = 0xFFB4BAC1;
@@ -90,9 +92,15 @@ final class Chrome {
                 Shader.TileMode.CLAMP);
     }
 
-    /** The fill of tiles, cards and keys. Classic: black glass, a touch of grey at the top. Glass: nearly clear. */
+    /**
+     * The fill of tiles, cards and keys. Classic: black glass, a touch of grey at the top. Glass: white as thin
+     * as the frost setting asks, from none at all to milky.
+     */
     static Shader panel(float top, float bottom) {
-        if (style == GLASS) return new LinearGradient(0, top, 0, bottom, 0x1CFFFFFF, 0x08FFFFFF, Shader.TileMode.CLAMP);
+        if (style == GLASS) {
+            return new LinearGradient(0, top, 0, bottom, withAlpha(0xFFFFFF, frosted(0x1C)), withAlpha(0xFFFFFF, frosted(0x08)),
+                    Shader.TileMode.CLAMP);
+        }
         return new LinearGradient(0, top, 0, bottom, 0xFF15181B, 0xFF060708, Shader.TileMode.CLAMP);
     }
 
@@ -129,6 +137,11 @@ final class Chrome {
     /** Forget cached background shaders (size or accent changed). */
     static void resetBackground(Paint base) {
         base.setShader(null);
+    }
+
+    /** An alpha for the fully frosted glass, scaled to the frost setting. */
+    static int frosted(int alpha) {
+        return Math.round(alpha * frost / 10f);
     }
 
     static int withAlpha(int color, int alpha) {
