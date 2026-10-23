@@ -64,22 +64,29 @@ final class VehicleView extends View {
         invalidate();
     }
 
-    /** What the car reports; capacity is the tank size from Settings, for the fuel share. */
-    void setCar(CanBus can, float capacity) {
+    /**
+     * What the car reports; capacity is the tank size from Settings, for the fuel share; hint, if not null, says
+     * why fuel, battery, coolant and tyres are missing.
+     */
+    void setCar(CanBus can, float capacity, String hint) {
         Context c = getContext();
         Locale l = Locale.getDefault();
         values[0] = can.outside != null ? can.outside : dash;
         values[1] = can.battery > 0 ? String.format(l, "%.1f V", can.battery) : dash;
         values[2] = Float.isNaN(can.coolant) ? dash : Math.round(can.coolant) + "°C";
-        values[3] = can.fuel >= 0 ? String.format(l, "%.1f L  ·  %d%%", can.fuel,
+        values[3] = can.fuel >= 0 ? String.format(l, "%s L  ·  %d%%",
+                can.fuel == Math.floor(can.fuel) ? String.valueOf((int) can.fuel) : String.format(l, "%.1f", can.fuel),
                 Math.round(100 * Math.min(1f, can.fuel / Math.max(1f, capacity)))) : dash;
         if (can.tyres == null) {
             values[4] = dash;
         } else {
-            values[4] = String.format(l, "%.1f · %.1f · %.1f · %.1f bar", can.tyres[0], can.tyres[1], can.tyres[2], can.tyres[3]);
+            StringBuilder t = new StringBuilder();
+            for (float bar : can.tyres) {
+                t.append(t.length() == 0 ? "" : " · ").append(bar < 0 ? dash : String.format(l, "%.1f", bar));
+            }
+            values[4] = t.append(" bar").toString();
         }
-        boolean missing = can.battery <= 0 || can.fuel < 0 || can.tyres == null;
-        missingText = missing && can.state != CanBus.MISSING ? c.getString(R.string.veh_not_shared) : "";
+        missingText = hint == null ? "" : hint;
         statusText = can.state == CanBus.MISSING ? c.getString(R.string.can_missing)
                 : can.packets == 0 ? c.getString(R.string.can_waiting)
                 : c.getString(R.string.can_live, can.packets);

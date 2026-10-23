@@ -16,7 +16,8 @@ import android.os.Parcel;
 /**
  * Car data from the head unit's CANBus decoder, read the way the unit's own apps read it: NWD's CAN service
  * (com.nwd.can.setting) over Binder for speed and doors, and the outside temperature it broadcasts for the
- * status bar. Read only: nothing is ever sent towards the car. On units without that service nothing happens.
+ * status bar. Fuel, battery, coolant and tyres, which the service keeps to its own screens, come from its log
+ * (NwdLog). Read only: nothing is ever sent towards the car. On units without that service nothing happens.
  *
  * The Binder calls mirror NWD's ICanRemote4OuterFeature AIDL; packets start with 0x6E, then a data type,
  * a length, and the payload from byte 3 (see the decoders below).
@@ -58,14 +59,14 @@ final class CanBus {
     int speed = -1;
     int doors = -1;
     String outside;
-    /** Litres in the tank, from decoders that report it in car info (GM's Raise decoder does not). */
+    /** Litres in the tank: from car info on decoders that fill it in, else from Car Info's log. */
     float fuel = -1;
-    /**
-     * Not shared by NWD's service with other apps (it shows them only in its own trip and TPMS screens); kept
-     * for another source, such as an OBD adapter.
-     */
+    /** Volts and °C, from Car Info's log. */
     float battery = -1, coolant = Float.NaN;
+    /** bar, front left, front right, rear left, rear right (below zero: that sensor unknown); null until known. */
     float[] tyres;
+    /** The second source, Car Info's log. */
+    final NwdLog log;
 
     private final Context context;
     private final Listener listener;
@@ -123,6 +124,11 @@ final class CanBus {
     CanBus(Context context, Listener listener) {
         this.context = context;
         this.listener = listener;
+        log = new NwdLog(context, new NwdLog.Listener() {
+            @Override public void onCarFrame(byte[] frame) {
+                decodeCarState(frame);
+            }
+        });
     }
 
     /**
@@ -139,7 +145,16 @@ final class CanBus {
         bind();
     }
 
+    /**
+     * Keeps Car Info's log coming, on units that have NWD's service; start (from onResume, Home in front, which
+     * Android 13+ requires for asking) also starts reading it.
+     */
+    void wake(boolean start) {
+        if (state != MISSING) log.wake(start);
+    }
+
     void close() {
+        log.stop();
         unbind();
         if (receiving) context.unregisterReceiver(temperature);
         receiving = false;
@@ -206,9 +221,10 @@ final class CanBus {
                 if (p.length < OFFSET + 2) return;
                 int s = u16(p, OFFSET);
                 speed = s == 0xFFFF ? -1 : s;
+                // Zero on decoders that leave it out (GM's Raise among them); the log's value stands then.
                 if (p.length > OFFSET + 14) {
                     int f = p[OFFSET + 14] & 0xFF;
-                    fuel = f == 0 || f == 0xFF ? -1 : f;
+                    if (f != 0 && f != 0xFF) fuel = f;
                 }
                 break;
             case DOOR:
@@ -218,6 +234,37 @@ final class CanBus {
                 return;
         }
         listener.onCanChanged();
+    }
+
+    /**
+     * A Raise frame of type 4A from Car Info's log, decoded as GM's Raise decoder in Car Info does: payload 04 is
+     * coolant (+40), fuel in whole litres (third byte) and battery voltage (bytes four and five); 01 is the tyre
+     * pressures in steps of 4 kPa, front left, front right, rear left, rear right.
+     */
+    void decodeCarState(byte[] f) {
+        if (f.length < OFFSET + 7) return;
+        if (f[OFFSET] == 4) {
+            coolant = (f[OFFSET + 1] & 0xFF) - 40;
+            int litres = f[OFFSET + 3] & 0xFF;
+            fuel = litres == 0xFF ? -1 : litres;
+            battery = volts(u16(f, OFFSET + 4));
+        } else if (f[OFFSET] == 1) {
+            float[] bar = new float[4];
+            for (int i = 0; i < 4; i++) {
+                int v = f[OFFSET + 2 + i] & 0xFF;
+                bar[i] = v == 0 || v == 0xFF ? -1 : v * 4 / 100f;
+            }
+            tyres = bar;
+        } else {
+            return;
+        }
+        listener.onCanChanged();
+    }
+
+    /** The box's unit for the battery is not documented: whole volts, tenths or hundredths, told apart by size. */
+    static float volts(int raw) {
+        if (raw <= 0 || raw == 0xFFFF) return -1;
+        return raw >= 1000 ? raw / 100f : raw >= 100 ? raw / 10f : raw;
     }
 
     private static int u16(byte[] p, int at) {

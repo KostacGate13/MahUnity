@@ -17,16 +17,17 @@ final class TyreCard extends InfoCard {
         super(context, R.string.widget_tyres);
         plan.setStyle(Paint.Style.STROKE);
         plan.setColor(0x80B4BAC1);
-        set(null);
+        set(null, null);
     }
 
-    /** bar, front left, front right, rear left, rear right; null: unknown. */
-    void set(float[] bar) {
+    /** bar, front left, front right, rear left, rear right; null: unknown, and hint says why (null: not yet). */
+    void set(float[] bar, String hint) {
         String dash = getContext().getString(R.string.unknown);
         for (int i = 0; i < 4; i++) {
             values[i] = bar == null || bar[i] <= 0 ? dash : String.format(java.util.Locale.getDefault(), "%.1f", bar[i]);
         }
-        noteText = bar == null ? getContext().getString(R.string.tyres_unknown) : getContext().getString(R.string.tyres_unit);
+        noteText = bar != null ? getContext().getString(R.string.tyres_unit)
+                : hint != null ? hint : getContext().getString(R.string.car_data_waiting);
         invalidate();
     }
 

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
@@ -7,6 +8,11 @@
     <!-- Only for the optional GPS speed on Home, asked for when you switch it on in Settings. -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- Fuel, battery, coolant and tyres from NWD Car Info's log (NwdLog). Granted only over ADB, once:
+         adb shell pm grant com.mahunity.launcher android.permission.READ_LOGS -->
+    <uses-permission
+        android:name="android.permission.READ_LOGS"
+        tools:ignore="ProtectedPermissions" />
 
     <!-- Android 11+ package visibility: the apps Home lists and the defaults it guesses for the tiles. -->
     <queries>

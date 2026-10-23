@@ -17,15 +17,15 @@ final class FuelCard extends InfoCard {
         super(context, R.string.widget_fuel);
     }
 
-    /** litres below zero: unknown. */
-    void set(float litres, float capacity) {
+    /** litres below zero: unknown, and hint says why (null: the car has not said yet). */
+    void set(float litres, float capacity, String hint) {
         this.litres = litres;
         this.capacity = capacity;
         Context c = getContext();
         if (litres < 0) {
             percentText = c.getString(R.string.unknown);
             litresText = "";
-            noteText = c.getString(R.string.fuel_unknown);
+            noteText = hint != null ? hint : c.getString(R.string.car_data_waiting);
         } else {
             percentText = Math.round(100 * fraction()) + "%";
             litresText = c.getString(R.string.fuel_litres, format(litres), format(capacity));

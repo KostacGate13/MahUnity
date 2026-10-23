@@ -94,7 +94,6 @@
     <string name="veh_coolant">Coolant</string>
     <string name="veh_fuel">Fuel</string>
     <string name="veh_tyres">Tyres</string>
-    <string name="veh_not_shared">Battery, coolant, fuel, tyres: not shared by the unit</string>
     <string name="open_driver">Driver\'s door open</string>
     <string name="open_passenger">Passenger door open</string>
     <string name="open_rear_left">Rear left door open</string>
@@ -112,12 +111,16 @@
     <string name="tank_value">%1$s L</string>
     <string name="fuel_litres">%1$s L of %2$s L</string>
     <string name="fuel_left">fuel left</string>
-    <string name="fuel_unknown">The unit does not share the fuel level</string>
     <string name="tyres_unit">bar</string>
-    <string name="tyres_unknown">The unit does not share tyre pressures</string>
     <string name="trip_distance">km</string>
     <string name="trip_time">time</string>
     <string name="trip_average">km/h avg</string>
     <string name="trip_waiting">Starts when the car moves</string>
     <string name="trip_units">Since setting off</string>
+    <string name="set_car_data">Car Info data</string>
+    <string name="car_data_live">On</string>
+    <string name="car_data_adb">Needs ADB</string>
+    <string name="car_data_waiting">Waiting for Car Info</string>
+    <string name="car_data_permission">Turn on: Settings ▸ Car Info data</string>
+    <string name="car_data_help">Fuel, battery, coolant and tyre pressures come from NWD\'s Car Info, through the system log; Cockpit never touches the CANBus.\n\nAndroid lets an app read that log only with a permission given once over ADB:\n\nadb shell pm grant %1$s android.permission.READ_LOGS\n\nOn Android 13 and later the system also asks for access to the logs each time the unit starts: allow it.</string>
 </resources>

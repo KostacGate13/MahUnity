@@ -11,4 +11,7 @@ adb shell cmd package set-home-activity "$PKG/.HomeActivity" \
 # Optional extras; each one is harmless if the firmware refuses it.
 adb shell cmd notification allow_listener "$PKG/$PKG.MediaListener" || true   # track titles on the media card
 adb shell pm grant "$PKG" android.permission.ACCESS_FINE_LOCATION || true       # GPS speed
+# Fuel, battery, coolant and tyres from NWD Car Info's log; canapp_debug keeps Car Info logging from boot.
+adb shell pm grant "$PKG" android.permission.READ_LOGS || true
+adb shell settings put system canapp_debug 1 || true
 adb shell am start -a android.intent.action.MAIN -c android.intent.category.HOME

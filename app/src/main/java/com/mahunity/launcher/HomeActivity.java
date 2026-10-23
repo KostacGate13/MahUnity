@@ -95,7 +95,8 @@ public final class HomeActivity extends Activity
     private TileView[] tiles;
     private Panel appsPanel, settingsPanel, shown;
     private AppsGrid grid;
-    private SettingsRows.Row rowHome, rowCar, rowStyle, rowTop, rowBottom, rowTank, rowAmbient, rowSpeed, rowMedia, rowName;
+    private SettingsRows.Row rowHome, rowCar, rowStyle, rowTop, rowBottom, rowTank, rowAmbient, rowSpeed, rowMedia,
+            rowCarData, rowName;
     private String[] headings;
     /** The last GPS reading, kept for when the car stops reporting its own speed. */
     private String gpsSpeed, gpsHeading;
@@ -120,6 +121,8 @@ public final class HomeActivity extends Activity
             if (resumed) {
                 if (tripCard != null) tripCard.set(trip);
                 showGaugeSpeed();
+                // Car Info's logging resets when it restarts; this turns it back on.
+                if (ticks % 60 == 0) can.wake(false);
             }
             handler.postDelayed(this, 1000);
         }
@@ -397,6 +400,15 @@ public final class HomeActivity extends Activity
                 openTrackInfoAccess();
             }
         });
+        rowCarData = rows.add(R.string.set_car_data, new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                new AlertDialog.Builder(HomeActivity.this)
+                        .setTitle(R.string.set_car_data)
+                        .setMessage(getString(R.string.car_data_help, getPackageName()))
+                        .setPositiveButton(android.R.string.ok, null)
+                        .show();
+            }
+        });
         rowName = rows.add(R.string.set_name, new View.OnClickListener() {
             @Override public void onClick(View v) {
                 editName();
@@ -440,6 +452,7 @@ public final class HomeActivity extends Activity
             gpsKmh = -1;
             showVehicleSpeed();
         }
+        can.wake(true);
         // Whatever changed while another app was in front.
         onCanChanged();
         if (tripCard != null) tripCard.set(trip);
@@ -706,10 +719,19 @@ public final class HomeActivity extends Activity
         if (!resumed) return;
         top.setOutside(can.outside);
         float tank = tank();
-        if (fuelCard != null) fuelCard.set(can.fuel, tank);
-        if (tyreCard != null) tyreCard.set(can.tyres);
-        if (vehicle != null) vehicle.setCar(can, tank);
+        String hint = carDataHint();
+        if (fuelCard != null) fuelCard.set(can.fuel, tank, hint);
+        if (tyreCard != null) tyreCard.set(can.tyres, hint);
+        if (vehicle != null) vehicle.setCar(can, tank, hint);
         showVehicleSpeed();
+        if (shown == settingsPanel) refreshSettings();
+    }
+
+    /** Why fuel, battery, coolant and tyres are missing: Car Info's log not readable yet, or not heard from. */
+    private String carDataHint() {
+        if (can.state == CanBus.MISSING) return null;
+        if (!can.log.allowed()) return getString(R.string.car_data_permission);
+        return can.log.frames == 0 ? getString(R.string.car_data_waiting) : null;
     }
 
     /** Turns the car to the first open door (the driver's before the rest) and names every one open. */
@@ -769,6 +791,9 @@ public final class HomeActivity extends Activity
         rowSpeed.setValue(getString(speedOn ? R.string.on : R.string.off), speedOn, 0);
         boolean access = media.hasAccess();
         rowMedia.setValue(getString(access ? R.string.media_on : R.string.media_allow), !access, 0);
+        boolean logs = can.log.allowed();
+        rowCarData.setValue(getString(!logs ? R.string.car_data_adb : can.log.frames > 0 ? R.string.car_data_live
+                : R.string.car_data_waiting), !logs, 0);
         rowName.setValue(prefs.getString(PREF_NAME, getString(R.string.app_name)), false, 0);
     }
 

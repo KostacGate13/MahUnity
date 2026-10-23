@@ -92,7 +92,6 @@
     <string name="veh_coolant">Ψυκτικό</string>
     <string name="veh_fuel">Βενζίνη</string>
     <string name="veh_tyres">Ελαστικά</string>
-    <string name="veh_not_shared">Μπαταρία, ψυκτικό, βενζίνη, ελαστικά: δεν τα δίνει η μονάδα</string>
     <string name="open_driver">Πόρτα οδηγού ανοιχτή</string>
     <string name="open_passenger">Πόρτα συνοδηγού ανοιχτή</string>
     <string name="open_rear_left">Πίσω αριστερή πόρτα ανοιχτή</string>
@@ -110,12 +109,16 @@
     <string name="tank_value">%1$s L</string>
     <string name="fuel_litres">%1$s L από %2$s L</string>
     <string name="fuel_left">βενζίνη απομένει</string>
-    <string name="fuel_unknown">Η μονάδα δεν δίνει τη στάθμη βενζίνης</string>
     <string name="tyres_unit">bar</string>
-    <string name="tyres_unknown">Η μονάδα δεν δίνει τις πιέσεις ελαστικών</string>
     <string name="trip_distance">km</string>
     <string name="trip_time">χρόνος</string>
     <string name="trip_average">μ.ο. km/h</string>
     <string name="trip_waiting">Ξεκινά όταν κινηθεί το αυτοκίνητο</string>
     <string name="trip_units">Από την αναχώρηση</string>
+    <string name="set_car_data">Δεδομένα Car Info</string>
+    <string name="car_data_live">Ενεργά</string>
+    <string name="car_data_adb">Χρειάζεται ADB</string>
+    <string name="car_data_waiting">Αναμονή για την Car Info</string>
+    <string name="car_data_permission">Ενεργοποίηση: Ρυθμίσεις ▸ Δεδομένα Car Info</string>
+    <string name="car_data_help">Βενζίνη, μπαταρία, ψυκτικό και πιέσεις ελαστικών έρχονται από την Car Info της NWD, μέσα από το log του συστήματος· το Cockpit δεν αγγίζει το CANBus.\n\nΤο Android αφήνει μια εφαρμογή να διαβάζει αυτό το log μόνο με άδεια που δίνεται μία φορά από ADB:\n\nadb shell pm grant %1$s android.permission.READ_LOGS\n\nΣε Android 13 και μετά, το σύστημα ρωτάει επίσης για πρόσβαση στα logs κάθε φορά που ξεκινά η μονάδα: πατήστε «Να επιτρέπεται».</string>
 </resources>
