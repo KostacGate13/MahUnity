@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name" translatable="false">MahUnity</string>
+
+    <string name="slot_nav">Navigation</string>
+    <string name="slot_music">Music</string>
+    <string name="slot_radio">Radio</string>
+    <string name="slot_phone">Phone</string>
+    <string name="slot_link">CarPlay · Auto</string>
+    <string name="slot_apps">Apps</string>
+    <string name="hold_to_choose">Hold to choose an app</string>
+    <plurals name="apps_count">
+        <item quantity="one">%d app</item>
+        <item quantity="other">%d apps</item>
+    </plurals>
+
+    <string name="apps_title">Applications</string>
+    <string name="pick_title">Choose for: %1$s</string>
+    <string name="pick_auto">Automatic</string>
+    <string name="settings_title">Settings</string>
+    <string name="close">Close</string>
+    <string name="cannot_open">Could not open %1$s</string>
+
+    <string name="greet_morning">Good morning</string>
+    <string name="greet_afternoon">Good afternoon</string>
+    <string name="greet_evening">Good evening</string>
+    <string name="kmh">km/h</string>
+    <string-array name="headings">
+        <item>N</item>
+        <item>NE</item>
+        <item>E</item>
+        <item>SE</item>
+        <item>S</item>
+        <item>SW</item>
+        <item>W</item>
+        <item>NW</item>
+    </string-array>
+
+    <string name="media_prev">Previous</string>
+    <string name="media_play">Play or pause</string>
+    <string name="media_next">Next</string>
+    <string name="no_media">Nothing playing</string>
+    <string name="media_playing">Music is playing</string>
+    <string name="media_hint">Tap ▶ to play</string>
+    <string name="media_hint_access">For titles: Settings</string>
+
+    <string name="set_home">Home screen</string>
+    <string name="home_is_default">Default ✓</string>
+    <string name="home_make_default">Make default</string>
+    <string name="set_ambient">Ambient lighting</string>
+    <string-array name="ambient_names">
+        <item>Silver</item>
+        <item>Ice blue</item>
+        <item>Amber</item>
+        <item>Red</item>
+        <item>Violet</item>
+    </string-array>
+    <string name="set_speed">GPS speed</string>
+    <string name="on">On</string>
+    <string name="off">Off</string>
+    <string name="set_media">Track info</string>
+    <string name="media_on">On</string>
+    <string name="media_allow">Allow access</string>
+    <string name="media_access_adb">This unit hides that setting. From a computer with ADB:\n\nadb shell cmd notification allow_listener %1$s</string>
+    <string name="set_name">Name on the bar</string>
+    <string name="set_tiles">Tiles</string>
+    <string name="tiles_reset">Back to automatic</string>
+    <string name="tiles_reset_done">Tiles are automatic again</string>
+    <string name="set_system">System settings</string>
+    <string name="open">Open</string>
+    <string name="set_version">Version</string>
+</resources>

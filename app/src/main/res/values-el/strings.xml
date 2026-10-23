@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="slot_nav">Πλοήγηση</string>
+    <string name="slot_music">Μουσική</string>
+    <string name="slot_radio">Ραδιόφωνο</string>
+    <string name="slot_phone">Τηλέφωνο</string>
+    <string name="slot_link">CarPlay · Auto</string>
+    <string name="slot_apps">Εφαρμογές</string>
+    <string name="hold_to_choose">Κρατήστε πατημένο για επιλογή</string>
+    <plurals name="apps_count">
+        <item quantity="one">%d εφαρμογή</item>
+        <item quantity="other">%d εφαρμογές</item>
+    </plurals>
+
+    <string name="apps_title">Εφαρμογές</string>
+    <string name="pick_title">Επιλογή για: %1$s</string>
+    <string name="pick_auto">Αυτόματα</string>
+    <string name="settings_title">Ρυθμίσεις</string>
+    <string name="close">Κλείσιμο</string>
+    <string name="cannot_open">Δεν άνοιξε: %1$s</string>
+
+    <string name="greet_morning">Καλημέρα</string>
+    <string name="greet_afternoon">Καλησπέρα</string>
+    <string name="greet_evening">Καλησπέρα</string>
+    <string name="kmh">km/h</string>
+    <string-array name="headings">
+        <item>Β</item>
+        <item>ΒΑ</item>
+        <item>Α</item>
+        <item>ΝΑ</item>
+        <item>Ν</item>
+        <item>ΝΔ</item>
+        <item>Δ</item>
+        <item>ΒΔ</item>
+    </string-array>
+
+    <string name="media_prev">Προηγούμενο</string>
+    <string name="media_play">Αναπαραγωγή ή παύση</string>
+    <string name="media_next">Επόμενο</string>
+    <string name="no_media">Δεν παίζει μουσική</string>
+    <string name="media_playing">Παίζει μουσική</string>
+    <string name="media_hint">Πατήστε ▶ για αναπαραγωγή</string>
+    <string name="media_hint_access">Για τίτλους: Ρυθμίσεις</string>
+
+    <string name="set_home">Αρχική οθόνη</string>
+    <string name="home_is_default">Προεπιλογή ✓</string>
+    <string name="home_make_default">Ορισμός ως προεπιλογή</string>
+    <string name="set_ambient">Φωτισμός ατμόσφαιρας</string>
+    <string-array name="ambient_names">
+        <item>Ασημί</item>
+        <item>Παγωμένο μπλε</item>
+        <item>Κεχριμπάρι</item>
+        <item>Κόκκινο</item>
+        <item>Βιολετί</item>
+    </string-array>
+    <string name="set_speed">Ταχύτητα GPS</string>
+    <string name="on">Ναι</string>
+    <string name="off">Όχι</string>
+    <string name="set_media">Πληροφορίες μουσικής</string>
+    <string name="media_on">Ενεργές</string>
+    <string name="media_allow">Επιτρέψτε πρόσβαση</string>
+    <string name="media_access_adb">Η μονάδα κρύβει αυτή τη ρύθμιση. Από υπολογιστή με ADB:\n\nadb shell cmd notification allow_listener %1$s</string>
+    <string name="set_name">Όνομα στην μπάρα</string>
+    <string name="set_tiles">Πλακίδια</string>
+    <string name="tiles_reset">Επαναφορά στα αυτόματα</string>
+    <string name="tiles_reset_done">Τα πλακίδια επανήλθαν στα αυτόματα</string>
+    <string name="set_system">Ρυθμίσεις συστήματος</string>
+    <string name="open">Άνοιγμα</string>
+    <string name="set_version">Έκδοση</string>
+</resources>

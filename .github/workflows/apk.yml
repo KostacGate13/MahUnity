@@ -1,0 +1,47 @@
+name: APK
+
+# Builds the release APK on every push. On a push it also replaces the "latest" release, so the newest
+# APK is always one tap away: github.com/<you>/MahUnity/releases/latest
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build
+        run: ./gradlew --no-daemon assembleRelease
+
+      - name: Name the APK
+        run: |
+          cp app/build/outputs/apk/release/app-release.apk MahUnity.apk
+          ls -l MahUnity.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MahUnity-apk
+          path: MahUnity.apk
+
+      - name: Publish as the "latest" release
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete latest --yes --cleanup-tag || true
+          gh release create latest MahUnity.apk --target "$GITHUB_SHA" --prerelease \
+            --title "MahUnity (latest build)" \
+            --notes "Built from ${GITHUB_SHA::7} on ${GITHUB_REF_NAME}. Copy MahUnity.apk to a USB stick and open it on the head unit."

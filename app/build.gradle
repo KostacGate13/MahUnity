@@ -1,0 +1,61 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.mahunity.launcher'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.mahunity.launcher'
+        // Android 6+: head units from the last decade, including the Android 10-15 ones sold today.
+        minSdk 23
+        targetSdk 34
+        versionCode 1
+        versionName '1.0'
+    }
+
+    signingConfigs {
+        // One key in the repo, so every build (CI or your own) installs over the previous one without
+        // uninstalling first. Not a secret: it only signs this sideloaded launcher.
+        sideload {
+            storeFile file('sideload.keystore')
+            storePassword 'mahunity'
+            keyAlias 'mahunity'
+            keyPassword 'mahunity'
+        }
+    }
+
+    buildTypes {
+        release {
+            // R8 strips and optimises: a smaller APK and a faster cold start on a head unit's CPU.
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt')
+            signingConfig signingConfigs.sideload
+        }
+        debug {
+            signingConfig signingConfigs.sideload
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    buildFeatures {
+        buildConfig false
+    }
+
+    dependenciesInfo {
+        includeInApk false
+        includeInBundle false
+    }
+
+    lint {
+        checkReleaseBuilds false
+    }
+}
+
+// No dependencies on purpose: no AndroidX, no Kotlin. Everything is the platform's own views and Canvas.
