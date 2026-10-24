@@ -15,7 +15,7 @@ import android.view.animation.DecelerateInterpolator;
  * of the screen, like HomeLayout.
  */
 final class CockpitLayout extends ViewGroup {
-    static final int HOME = 0, MUSIC = 1, VEHICLE = 2;
+    static final int HOME = 0, MUSIC = 1, VEHICLE = 2, LIGHTS = 3;
 
     final TopBar top;
     final ChromeButton gear;
@@ -36,6 +36,7 @@ final class CockpitLayout extends ViewGroup {
     private final Rect stageRect = new Rect();
     private final Rect clockRect = new Rect(), clockGlass = new Rect(), bottomRect = new Rect(), mediaRect = new Rect();
     private final Rect vehicleRect = new Rect();
+    private final View lights;
     private final Rect[] sourceRects;
     private final RectF glass = new RectF();
     private final Paint background = new Paint();
@@ -48,7 +49,8 @@ final class CockpitLayout extends ViewGroup {
 
     /** homeBottom may be the media card itself; otherwise the media card shows on the Music tab only. */
     CockpitLayout(Context context, TopBar top, ChromeButton gear, ChromeButton[] keys, Header header, View homeTop,
-                  View homeBottom, MediaCard media, TileView[] sources, VehicleView vehicle, CarView car, DockBar dock) {
+                  View homeBottom, MediaCard media, TileView[] sources, VehicleView vehicle, View lights, CarView car,
+                  DockBar dock) {
         super(context);
         this.top = top;
         this.gear = gear;
@@ -61,6 +63,7 @@ final class CockpitLayout extends ViewGroup {
         this.media = media;
         this.sources = sources;
         this.vehicle = vehicle;
+        this.lights = lights;
         this.car = car;
         this.dock = dock;
         sourceRects = new Rect[sources.length];
@@ -77,6 +80,7 @@ final class CockpitLayout extends ViewGroup {
         addView(media);
         for (TileView t : sources) addView(t);
         addView(vehicle);
+        addView(lights);
         addView(dock);
         showTab(HOME, false);
     }
@@ -94,12 +98,14 @@ final class CockpitLayout extends ViewGroup {
         media.setVisibility(next == MUSIC || (next == HOME && homeBottom == media) ? VISIBLE : GONE);
         for (TileView t : sources) t.setVisibility(next == MUSIC ? VISIBLE : GONE);
         vehicle.setVisibility(next == VEHICLE ? VISIBLE : GONE);
-        car.turnTo(next == MUSIC ? CarView.RIGHT_SIDE : next == VEHICLE ? CarView.REAR : CarView.FRONT);
+        lights.setVisibility(next == LIGHTS ? VISIBLE : GONE);
+        car.turnTo(next == MUSIC ? CarView.RIGHT_SIDE : next == VEHICLE ? CarView.REAR
+                : next == LIGHTS ? CarView.FRONT_LEFT : CarView.FRONT);
         requestLayout();
         invalidate();
         if (!animate) return;
         View[] incoming = next == HOME ? new View[] {homeTop, homeBottom}
-                : next == MUSIC ? concat(media, sources) : new View[] {vehicle};
+                : next == MUSIC ? concat(media, sources) : next == LIGHTS ? new View[] {lights} : new View[] {vehicle};
         float shift = -getWidth() * 0.02f;
         for (View v : incoming) {
             v.setAlpha(0f);
@@ -128,6 +134,7 @@ final class CockpitLayout extends ViewGroup {
         if (homeBottom != media) measure(homeBottom, bottomRect);
         measure(media, mediaRect);
         measure(vehicle, vehicleRect);
+        measure(lights, vehicleRect);
         for (int i = 0; i < sources.length; i++) measure(sources[i], sourceRects[i]);
         setMeasuredDimension(w, h);
     }
@@ -203,6 +210,7 @@ final class CockpitLayout extends ViewGroup {
         if (homeBottom != media) layout(homeBottom, bottomRect);
         layout(media, mediaRect);
         layout(vehicle, vehicleRect);
+        layout(lights, vehicleRect);
         for (int i = 0; i < sources.length; i++) layout(sources[i], sourceRects[i]);
     }
 

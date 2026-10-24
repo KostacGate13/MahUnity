@@ -8,6 +8,13 @@
     <!-- Only for the optional GPS speed on Home, asked for when you switch it on in Settings. -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- The LED strips (LedStrips): Bluetooth LE scans and connections; before Android 12, scans take location. -->
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation"
+        tools:targetApi="s" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
     <!-- Fuel, battery, coolant and tyres from NWD Car Info's log (NwdLog). Granted only over ADB, once:
          adb shell pm grant com.mahunity.launcher android.permission.READ_LOGS -->
     <uses-permission

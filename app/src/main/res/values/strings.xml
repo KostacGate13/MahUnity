@@ -148,4 +148,42 @@
     <string name="set_frost">Glass</string>
     <string name="frost_value">%1$d / 10</string>
     <string name="frost_ends">0 clear  ·  10 frosted</string>
+    <string name="tab_lights">Lights</string>
+    <string name="led_top">Dashboard</string>
+    <string name="led_bottom">Footwells</string>
+    <string name="led_settings">Light settings</string>
+    <string name="led_mode_normal">Normal</string>
+    <string name="led_mode_race">Race</string>
+    <string name="led_mode_ambient">Ambient</string>
+    <string name="led_mode_static">Static</string>
+    <string name="set_leds">LED lights</string>
+    <string name="set_led_device_top">Dashboard strip</string>
+    <string name="set_led_device_bottom">Footwell strips</string>
+    <string name="set_led_mode">Mode</string>
+    <string name="set_led_brightness">Brightness</string>
+    <string name="led_brightness_value">%1$d%%</string>
+    <string name="set_led_fuel_low">Fuel: red up to</string>
+    <string name="set_led_fuel_high">Fuel: own colour from</string>
+    <string name="set_led_redline">Revs: shift light from</string>
+    <string name="set_led_brake">Race: braking</string>
+    <string-array name="led_brakes">
+        <item>Sensitive</item>
+        <item>Normal</item>
+        <item>Hard stops only</item>
+    </string-array>
+    <string name="set_led_status">Status</string>
+    <string name="set_led_help">Help</string>
+    <string name="led_help">Cockpit drives Bluetooth LED controllers itself: ZENGGE (LEDnetWF), ELK-BLEDOM (Lotus Lantern, Duoco Strip and most footwell kits), Triones and Magic Home BLE (HappyLighting).\n\nA controller takes one connection at a time. Close its own app first, on the unit and on your phone, then choose it here.\n\nNormal: the dashboard follows the revs (its colour, yellow, red, flashing at the shift light), the footwells the fuel (red up to the low mark, orange, their colour from the high mark).\nRace: green while the car pulls, red while it brakes, with the shift light.\nAmbient: Cockpit\'s ambient colour.\nStatic: each strip\'s own colour.\n\nIf a strip says \'unknown type\', Status lists its services: send them over and its protocol can be added.</string>
+    <string name="led_choose">Choose</string>
+    <string name="led_scan_none">None (remove)</string>
+    <string name="led_no_ble">This unit has no Bluetooth LE that apps can use.</string>
+    <string name="led_bt_off">Bluetooth is off. Turn it on to find the LED controllers.</string>
+    <string name="led_open_bluetooth">Bluetooth</string>
+    <string name="led_status_none">no device</string>
+    <string name="led_status_permission">needs Bluetooth permission</string>
+    <string name="led_status_bt_off">Bluetooth off</string>
+    <string name="led_status_unknown">unknown type</string>
+    <string name="led_status_connecting">connecting…</string>
+    <string name="led_status_off">not connected</string>
+    <string name="led_status_no_ble">no Bluetooth LE</string>
 </resources>

@@ -24,7 +24,7 @@ import android.view.animation.AccelerateDecelerateInterpolator;
  */
 final class CarView extends View {
     /** Angles in degrees: 0 shows the nose, 90 the right-hand side, 180 the tail. */
-    static final float FRONT = 18f, RIGHT_SIDE = 90f, REAR = 205f;
+    static final float FRONT = 18f, RIGHT_SIDE = 90f, REAR = 205f, FRONT_LEFT = 320f;
 
     private static final float DISTANCE = 16f;
     private static final float ELEVATION = (float) Math.toRadians(4.5);

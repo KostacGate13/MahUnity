@@ -42,7 +42,8 @@ import java.util.Locale;
  * Settings as sheets over it.
  */
 public final class HomeActivity extends Activity
-        implements Apps.Listener, MediaWatcher.Listener, SpeedWatcher.Listener, CanBus.Listener {
+        implements Apps.Listener, MediaWatcher.Listener, SpeedWatcher.Listener, CanBus.Listener, LedStrips.Listener,
+        Ambient.Listener, LightsView.Listener, LightsSettings.Host {
     private static final int REQUEST_LOCATION = 1;
     private static final String PREF_ACCENT = "accent";
     private static final String PREF_SPEED = "speed";
@@ -100,6 +101,11 @@ public final class HomeActivity extends Activity
     /** Null on the classic Home. */
     private CockpitLayout cockpit;
     private DockBar.Item[] tabItems;
+    /** The LED strips, what they show, the Lights tab (cockpit only) and the Light settings sheet. */
+    private LedStrips leds;
+    private Ambient ambient;
+    private LightsView lights;
+    private LightsSettings lightsSettings;
     private VehicleView vehicle;
     private CarFrames carFrames;
     private TopBar top;
@@ -171,14 +177,21 @@ public final class HomeActivity extends Activity
         can = new CanBus(this, this);
         trip = new Trip(prefs);
         apps = new Apps(this, this);
+        leds = new LedStrips(this, this);
+        ambient = new Ambient(prefs, leds, this);
 
         buildHome();
         buildAppsPanel();
         buildSettingsPanel();
+        lightsSettings = new LightsSettings(this, ambient, leds, this);
         FrameLayout root = new FrameLayout(this);
         root.addView(home);
         root.addView(appsPanel);
         root.addView(settingsPanel);
+        root.addView(lightsSettings.panel);
+        // The strips stay connected for as long as Home lives, following the car while other apps are in front.
+        leds.start();
+        ambient.apply();
         setContentView(root);
         hideStatusBar();
         can.start();
@@ -289,6 +302,8 @@ public final class HomeActivity extends Activity
         tiles[Slots.RADIO] = sources[1];
         tiles[Slots.LINK] = sources[2];
         vehicle = new VehicleView(this);
+        lights = new LightsView(this);
+        lights.setListener(this);
         car = new CarView(this);
         if (!prefs.getBoolean(PREF_HOLOGRAM, false)) carFrames = CarFrames.open(this);
         car.setFrames(carFrames);
@@ -298,9 +313,10 @@ public final class HomeActivity extends Activity
         DockBar.Item musicTab = dock.add(R.drawable.ic_music, R.string.slot_music);
         DockBar.Item phone = dock.add(R.drawable.ic_phone, R.string.slot_phone);
         DockBar.Item vehicleTab = dock.add(R.drawable.ic_car, R.string.tab_vehicle);
+        DockBar.Item lightsTab = dock.add(R.drawable.ic_lights, R.string.tab_lights);
         DockBar.Item all = dock.add(R.drawable.ic_apps, R.string.slot_apps);
-        tabItems = new DockBar.Item[] {homeTab, musicTab, vehicleTab};
-        int[] tabs = {CockpitLayout.HOME, CockpitLayout.MUSIC, CockpitLayout.VEHICLE};
+        tabItems = new DockBar.Item[] {homeTab, musicTab, vehicleTab, lightsTab};
+        int[] tabs = {CockpitLayout.HOME, CockpitLayout.MUSIC, CockpitLayout.VEHICLE, CockpitLayout.LIGHTS};
         for (int i = 0; i < tabs.length; i++) {
             final int tab = tabs[i];
             tabItems[i].setOnClickListener(new View.OnClickListener() {
@@ -312,7 +328,7 @@ public final class HomeActivity extends Activity
         slotItem(nav, Slots.NAV);
         slotItem(phone, Slots.PHONE);
         slotItem(all, Slots.APPS);
-        cockpit = new CockpitLayout(this, top, gear, topKeys, header, upper, lower, card, sources, vehicle, car, dock);
+        cockpit = new CockpitLayout(this, top, gear, topKeys, header, upper, lower, card, sources, vehicle, lights, car, dock);
         home = cockpit;
         showTab(CockpitLayout.HOME);
     }
@@ -354,7 +370,7 @@ public final class HomeActivity extends Activity
         boolean animate = cockpit.isLaidOut();
         if (animate && tab == cockpit.tab()) return;
         cockpit.showTab(tab, animate);
-        int[] order = {CockpitLayout.HOME, CockpitLayout.MUSIC, CockpitLayout.VEHICLE};
+        int[] order = {CockpitLayout.HOME, CockpitLayout.MUSIC, CockpitLayout.VEHICLE, CockpitLayout.LIGHTS};
         for (int i = 0; i < order.length; i++) tabItems[i].setChosen(order[i] == tab);
         showHeader();
     }
@@ -364,6 +380,8 @@ public final class HomeActivity extends Activity
         int tab = cockpit == null ? CockpitLayout.HOME : cockpit.tab();
         if (tab == CockpitLayout.MUSIC) header.set(getString(R.string.slot_music), getString(R.string.header_sources));
         else if (tab == CockpitLayout.VEHICLE) header.set(getString(R.string.tab_vehicle), Text.today());
+        else if (tab == CockpitLayout.LIGHTS) header.set(getString(R.string.tab_lights),
+                Text.upper(getString(Ambient.MODE_NAMES[ambient.mode])));
         else header.set(Text.greeting(this), Text.today());
     }
 
@@ -504,6 +522,11 @@ public final class HomeActivity extends Activity
                         .show();
             }
         });
+        rows.add(R.string.set_leds, new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                showLights();
+            }
+        });
         rowCanStatus = rows.add(R.string.set_can_status, new View.OnClickListener() {
             @Override public void onClick(View v) {
                 prefs.edit().putBoolean(PREF_CAN_STATUS, !prefs.getBoolean(PREF_CAN_STATUS, false)).apply();
@@ -591,6 +614,7 @@ public final class HomeActivity extends Activity
         trip.save();
         apps.close();
         can.close();
+        leds.close();
         media.release();
         if (carFrames != null) carFrames.close();
     }
@@ -726,6 +750,62 @@ public final class HomeActivity extends Activity
         show(settingsPanel);
     }
 
+    // Lights
+
+    private void showLights() {
+        lightsSettings.refresh();
+        show(lightsSettings.panel);
+    }
+
+    @Override public void hideLights() {
+        hide(lightsSettings.panel);
+    }
+
+    @Override public void lightsChanged() {
+        onAmbientChanged();
+        if (cockpit != null && cockpit.tab() == CockpitLayout.LIGHTS) showHeader();
+    }
+
+    @Override public void onLedsChanged() {
+        onAmbientChanged();
+        if (lightsSettings != null && shown == lightsSettings.panel) lightsSettings.refresh();
+    }
+
+    @Override public void onAmbientChanged() {
+        if (lights == null || lightsSettings == null) return;
+        lights.set(ambient, lightsSettings.status(LedStrips.TOP), lightsSettings.status(LedStrips.BOTTOM));
+    }
+
+    @Override public void onLightSwitch(int role) {
+        // No device yet: the sheet, to choose one.
+        if (leds.strips[role].address == null) {
+            showLights();
+            return;
+        }
+        if (role == LedStrips.TOP) ambient.topOn = !ambient.topOn;
+        else ambient.bottomOn = !ambient.bottomOn;
+        ambient.save();
+    }
+
+    @Override public void onLightColor(int role, int color) {
+        if (role == LedStrips.TOP) ambient.topColor = color;
+        else ambient.bottomColor = color;
+        // Ambient takes Cockpit's colour; choosing one means the strip's own.
+        if (ambient.mode == Ambient.AMBIENT) ambient.mode = Ambient.STATIC;
+        ambient.save();
+        showHeader();
+    }
+
+    @Override public void onLightMode(int mode) {
+        ambient.mode = mode;
+        ambient.save();
+        showHeader();
+    }
+
+    @Override public void onLightSettings() {
+        showLights();
+    }
+
     private void show(final Panel panel) {
         if (shown != null && shown != panel) shown.setVisibility(View.GONE);
         shown = panel;
@@ -840,6 +920,10 @@ public final class HomeActivity extends Activity
     }
 
     @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] results) {
+        if (requestCode == LightsSettings.REQUEST) {
+            lightsSettings.onPermission();
+            return;
+        }
         if (requestCode == REQUEST_LOCATION && speed.allowed()) enableSpeed();
         refreshSettings();
     }
@@ -861,6 +945,9 @@ public final class HomeActivity extends Activity
     @Override public void onCanChanged() {
         // Doors first and even off screen, so the car already faces an open door when Home comes back.
         showDoors();
+        // The lights follow the car whatever is in front.
+        float kmh = currentSpeed();
+        ambient.update(can.rpm, kmh < 0 ? -1 : Math.round(kmh), can.fuel);
         if (!resumed) return;
         top.setOutside(can.outside);
         float tank = tank();
@@ -1019,6 +1106,7 @@ public final class HomeActivity extends Activity
                         prefs.edit().putInt(PREF_ACCENT, which).apply();
                         Chrome.accent = Chrome.ACCENTS[which];
                         Chrome.invalidateTree(getWindow().getDecorView());
+                        ambient.apply();
                         refreshSettings();
                     }
                 })

@@ -146,4 +146,42 @@
     <string name="set_frost">Γυαλί: διαφάνεια</string>
     <string name="frost_value">%1$d / 10</string>
     <string name="frost_ends">0 εντελώς διάφανο  ·  10 θολό (frosted)</string>
+    <string name="tab_lights">Φώτα</string>
+    <string name="led_top">Ταμπλό</string>
+    <string name="led_bottom">Πόδια</string>
+    <string name="led_settings">Ρυθμίσεις φώτων</string>
+    <string name="led_mode_normal">Κανονικό</string>
+    <string name="led_mode_race">Race</string>
+    <string name="led_mode_ambient">Ambient</string>
+    <string name="led_mode_static">Σταθερό</string>
+    <string name="set_leds">Φώτα LED</string>
+    <string name="set_led_device_top">Λωρίδα ταμπλό</string>
+    <string name="set_led_device_bottom">Λωρίδες ποδιών</string>
+    <string name="set_led_mode">Λειτουργία</string>
+    <string name="set_led_brightness">Φωτεινότητα</string>
+    <string name="led_brightness_value">%1$d%%</string>
+    <string name="set_led_fuel_low">Βενζίνη: κόκκινο έως</string>
+    <string name="set_led_fuel_high">Βενζίνη: δικό τους χρώμα από</string>
+    <string name="set_led_redline">Στροφές: αναβοσβήνει από</string>
+    <string name="set_led_brake">Race: φρένο</string>
+    <string-array name="led_brakes">
+        <item>Ευαίσθητο</item>
+        <item>Κανονικό</item>
+        <item>Μόνο δυνατά φρεναρίσματα</item>
+    </string-array>
+    <string name="set_led_status">Κατάσταση</string>
+    <string name="set_led_help">Βοήθεια</string>
+    <string name="led_help">Το Cockpit ελέγχει μόνο του τα Bluetooth χειριστήρια LED: ZENGGE (LEDnetWF), ELK-BLEDOM (Lotus Lantern, Duoco Strip και τα περισσότερα κιτ για τα πόδια), Triones και Magic Home BLE (HappyLighting).\n\nΚάθε χειριστήριο δέχεται μία σύνδεση τη φορά. Κλείστε πρώτα τη δική του εφαρμογή, και στη μονάδα και στο κινητό, και μετά διαλέξτε το εδώ.\n\nΚανονικό: το ταμπλό ακολουθεί τις στροφές (το χρώμα του, κίτρινο, κόκκινο, και αναβοσβήνει στο όριο), τα πόδια τη βενζίνη (κόκκινο ως το κάτω όριο, πορτοκαλί, το χρώμα τους από το πάνω όριο).\nRace: πράσινο όσο επιταχύνετε, κόκκινο όταν φρενάρετε, και το ταμπλό αναβοσβήνει στο όριο στροφών.\nAmbient: το χρώμα ατμόσφαιρας του Cockpit.\nΣταθερό: το χρώμα της κάθε λωρίδας.\n\nΑν μια λωρίδα γράφει «άγνωστος τύπος», η Κατάσταση δείχνει τις υπηρεσίες της: στείλτε τες για να προστεθεί.</string>
+    <string name="led_choose">Επιλογή</string>
+    <string name="led_scan_none">Καμία (αφαίρεση)</string>
+    <string name="led_no_ble">Η μονάδα δεν έχει Bluetooth LE για εφαρμογές.</string>
+    <string name="led_bt_off">Το Bluetooth είναι κλειστό. Ανοίξτε το για να βρεθούν τα χειριστήρια LED.</string>
+    <string name="led_open_bluetooth">Bluetooth</string>
+    <string name="led_status_none">χωρίς συσκευή</string>
+    <string name="led_status_permission">χρειάζεται άδεια Bluetooth</string>
+    <string name="led_status_bt_off">Bluetooth κλειστό</string>
+    <string name="led_status_unknown">άγνωστος τύπος</string>
+    <string name="led_status_connecting">σύνδεση…</string>
+    <string name="led_status_off">εκτός σύνδεσης</string>
+    <string name="led_status_no_ble">χωρίς Bluetooth LE</string>
 </resources>
