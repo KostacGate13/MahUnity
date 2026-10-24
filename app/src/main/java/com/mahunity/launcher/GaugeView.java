@@ -12,8 +12,9 @@ import java.util.Locale;
 
 /**
  * Home's upper widget as a speedometer with the time (Settings > Upper widget): the 60s dial or the 80s digital
- * dash. This holds what they share: the clock, ticking once a minute while Home shows, and the speed, eased
- * towards each new reading so a needle or a bar sweeps rather than jumps.
+ * dash. This holds what they share: the clock, ticking once a minute while Home shows; the speed, eased towards
+ * each new reading so a needle or a bar sweeps rather than jumps; and what the car reports through Car Info, for
+ * the smaller gauges beside it.
  */
 abstract class GaugeView extends View {
     static final float MAX = 200f;
@@ -23,6 +24,8 @@ abstract class GaugeView extends View {
     protected boolean known;
     protected int hour, minute;
     protected String timeText = "", dateText = "";
+    /** Fuel in litres and as a share of the tank (below zero: unknown), coolant in °C (NaN: unknown), battery in volts (0: unknown). */
+    protected float litres = -1, fuelShare = -1, coolant = Float.NaN, battery;
     private ValueAnimator move;
     private boolean ticking;
 
@@ -69,6 +72,15 @@ abstract class GaugeView extends View {
             }
         });
         move.start();
+    }
+
+    /** What Car Info decoded; capacity is the tank size from Settings. */
+    void setCar(float litres, float capacity, float coolant, float battery) {
+        this.litres = litres;
+        fuelShare = litres < 0 ? -1 : Math.max(0f, Math.min(1f, litres / Math.max(1f, capacity)));
+        this.coolant = coolant;
+        this.battery = Math.max(0f, battery);
+        invalidate();
     }
 
     private void refreshTime() {

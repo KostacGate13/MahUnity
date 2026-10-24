@@ -793,6 +793,7 @@ public final class HomeActivity extends Activity
         if (fuelCard != null) fuelCard.set(can.fuel, tank, hint);
         if (tyreCard != null) tyreCard.set(can.tyres, can.tyresPsi, hint);
         if (vehicle != null) vehicle.setCar(can, tank, hint);
+        if (gauge != null) gauge.setCar(can.fuel, tank, can.coolant, can.battery);
         showVehicleSpeed();
         if (shown == settingsPanel) refreshSettings();
     }
