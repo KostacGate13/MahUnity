@@ -11,7 +11,6 @@ import android.graphics.Shader;
 import android.graphics.Typeface;
 import android.text.TextPaint;
 
-import java.util.Locale;
 
 /**
  * The 80s digital dash, after a Corvette C4: liquid-crystal screens under smoked glass, set deep in a black
