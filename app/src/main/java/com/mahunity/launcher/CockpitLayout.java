@@ -19,8 +19,8 @@ final class CockpitLayout extends ViewGroup {
 
     final TopBar top;
     final ChromeButton gear;
-    /** The screen-off button left of the gear, on units that can turn their screen off; else null. */
-    final ChromeButton power;
+    /** Keys left of the gear, right to left (on NWD units: screen off, then DSP); may be empty. */
+    final ChromeButton[] keys;
     final Header header;
     /** Home's widgets, picked in Settings: the clock or the speedometer-clock, and the media card or another. */
     final View homeTop, homeBottom;
@@ -30,7 +30,8 @@ final class CockpitLayout extends ViewGroup {
     final CarView car;
     final DockBar dock;
 
-    private final Rect topRect = new Rect(), gearRect = new Rect(), powerRect = new Rect(), headerRect = new Rect(),
+    private final Rect[] keyRects;
+    private final Rect topRect = new Rect(), gearRect = new Rect(), headerRect = new Rect(),
             dockRect = new Rect();
     private final Rect stageRect = new Rect();
     private final Rect clockRect = new Rect(), clockGlass = new Rect(), bottomRect = new Rect(), mediaRect = new Rect();
@@ -46,12 +47,14 @@ final class CockpitLayout extends ViewGroup {
     private int tab = HOME;
 
     /** homeBottom may be the media card itself; otherwise the media card shows on the Music tab only. */
-    CockpitLayout(Context context, TopBar top, ChromeButton gear, ChromeButton power, Header header, View homeTop,
+    CockpitLayout(Context context, TopBar top, ChromeButton gear, ChromeButton[] keys, Header header, View homeTop,
                   View homeBottom, MediaCard media, TileView[] sources, VehicleView vehicle, CarView car, DockBar dock) {
         super(context);
         this.top = top;
         this.gear = gear;
-        this.power = power;
+        this.keys = keys;
+        keyRects = new Rect[keys.length];
+        for (int i = 0; i < keys.length; i++) keyRects[i] = new Rect();
         this.header = header;
         this.homeTop = homeTop;
         this.homeBottom = homeBottom;
@@ -67,7 +70,7 @@ final class CockpitLayout extends ViewGroup {
         addView(car);
         addView(top);
         addView(gear);
-        if (power != null) addView(power);
+        for (ChromeButton k : keys) addView(k);
         addView(header);
         addView(homeTop);
         if (homeBottom != media) addView(homeBottom);
@@ -117,7 +120,7 @@ final class CockpitLayout extends ViewGroup {
         place(w, h);
         measure(top, topRect);
         measure(gear, gearRect);
-        if (power != null) measure(power, powerRect);
+        for (int i = 0; i < keys.length; i++) measure(keys[i], keyRects[i]);
         measure(header, headerRect);
         measure(dock, dockRect);
         measure(car, stageRect);
@@ -145,8 +148,12 @@ final class CockpitLayout extends ViewGroup {
         top.setInset(pad);
         int g = Math.round(barH * 0.62f);
         gearRect.set(w - pad - g, (barH - g) / 2, w - pad, (barH - g) / 2 + g);
-        powerRect.set(gearRect.left - pad / 2 - g, gearRect.top, gearRect.left - pad / 2, gearRect.bottom);
-        top.showClock(w - (power != null ? powerRect.left : gearRect.left) + pad);
+        int keyRight = gearRect.left;
+        for (Rect r : keyRects) {
+            r.set(keyRight - pad / 2 - g, gearRect.top, keyRight - pad / 2, gearRect.bottom);
+            keyRight = r.left;
+        }
+        top.showClock(w - keyRight + pad);
         headerRect.set(0, barH, w, barH + headerH);
         header.setInset(pad);
         dockRect.set(0, h - dockH, w, h);
@@ -189,7 +196,7 @@ final class CockpitLayout extends ViewGroup {
         layout(car, stageRect);
         layout(top, topRect);
         layout(gear, gearRect);
-        if (power != null) layout(power, powerRect);
+        for (int i = 0; i < keys.length; i++) layout(keys[i], keyRects[i]);
         layout(header, headerRect);
         layout(dock, dockRect);
         layout(homeTop, clockRect);

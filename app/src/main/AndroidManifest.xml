@@ -40,6 +40,8 @@
         <package android:name="com.nwd.android.music.ui" />
         <package android:name="com.zjinnova.zlink" />
         <package android:name="com.android.car.setting" />
+        <package android:name="com.nwd.audioset" />
+        <package android:name="com.nwd.radio.service" />
     </queries>
 
     <application

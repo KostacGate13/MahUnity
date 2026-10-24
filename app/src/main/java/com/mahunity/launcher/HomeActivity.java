@@ -58,6 +58,9 @@ public final class HomeActivity extends Activity
     private static final String EXTRA_BACKLIGHT = "extra_backlight_switch";
     /** Car Info's switch for its own door window, read each time a door opens; only ADB may write it. */
     private static final String NWD_DOOR_NOT_SHOW = "car_config_door_not_show";
+    /** NWD's sound settings (DSP, equaliser), hidden from the app list like its other apps. */
+    private static final android.content.ComponentName NWD_DSP =
+            new android.content.ComponentName("com.nwd.audioset", "com.nwd.audioset.home_horizontalActivity");
     private static final String PREF_HOLOGRAM = "hologram";
     private static final String PREF_LOOK = "look";
     private static final String PREF_SHADE = "shade";
@@ -192,15 +195,32 @@ public final class HomeActivity extends Activity
                 showSettings();
             }
         });
-        ChromeButton power = null;
+        // On NWD units, left of the gear: screen off, then the DSP.
+        List<ChromeButton> keys = new ArrayList<>();
         if (installed(CAR_INFO) || installed(NWD_SETTINGS)) {
-            power = new ChromeButton(this, R.drawable.ic_power, R.string.screen_off);
+            ChromeButton power = new ChromeButton(this, R.drawable.ic_power, R.string.screen_off);
             power.setOnClickListener(new View.OnClickListener() {
                 @Override public void onClick(View v) {
                     sendBroadcast(new Intent(ACTION_BACKLIGHT).putExtra(EXTRA_BACKLIGHT, false));
                 }
             });
+            keys.add(power);
         }
+        if (installed(NWD_DSP.getPackageName())) {
+            ChromeButton dsp = new ChromeButton(this, R.drawable.ic_dsp, R.string.dsp);
+            dsp.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View v) {
+                    if (startSafely(Intent.makeMainActivity(NWD_DSP))) return;
+                    Intent i = getPackageManager().getLaunchIntentForPackage(NWD_DSP.getPackageName());
+                    if (i == null || !startSafely(i)) {
+                        Toast.makeText(HomeActivity.this, getString(R.string.cannot_open, getString(R.string.dsp)),
+                                Toast.LENGTH_SHORT).show();
+                    }
+                }
+            });
+            keys.add(dsp);
+        }
+        ChromeButton[] topKeys = keys.toArray(new ChromeButton[0]);
         int topWidget = prefs.getInt(PREF_TOP_WIDGET, TOP_CLOCK);
         if (topWidget == TOP_GAUGE_60S) gauge = new Gauge60(this);
         else if (topWidget == TOP_GAUGE_80S) gauge = new Gauge80(this);
@@ -223,6 +243,11 @@ public final class HomeActivity extends Activity
         });
         card.play.setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View v) {
+                // The radio has nothing to pause; its key opens it.
+                if (media.radio()) {
+                    openPlayer(v);
+                    return;
+                }
                 media.playPause();
                 recheckMediaSoon();
             }
@@ -253,7 +278,7 @@ public final class HomeActivity extends Activity
         tiles = new TileView[Slots.COUNT];
         if (!prefs.getBoolean(PREF_CAR, true)) {
             for (int i = 0; i < Slots.COUNT; i++) tiles[i] = tile(i);
-            home = new HomeLayout(this, top, gear, power, header, upper, lower, tiles);
+            home = new HomeLayout(this, top, gear, topKeys, header, upper, lower, tiles);
             showHeader();
             return;
         }
@@ -287,7 +312,7 @@ public final class HomeActivity extends Activity
         slotItem(nav, Slots.NAV);
         slotItem(phone, Slots.PHONE);
         slotItem(all, Slots.APPS);
-        cockpit = new CockpitLayout(this, top, gear, power, header, upper, lower, card, sources, vehicle, car, dock);
+        cockpit = new CockpitLayout(this, top, gear, topKeys, header, upper, lower, card, sources, vehicle, car, dock);
         home = cockpit;
         showTab(CockpitLayout.HOME);
     }
@@ -566,6 +591,7 @@ public final class HomeActivity extends Activity
         trip.save();
         apps.close();
         can.close();
+        media.release();
         if (carFrames != null) carFrames.close();
     }
 
@@ -728,10 +754,11 @@ public final class HomeActivity extends Activity
     // Media
 
     @Override public void onMediaChanged() {
-        boolean playing = media.playing();
+        boolean playing = media.playing() && !media.radio();
         if (media.hasSession()) {
             String title = media.title();
-            String source = Text.upper(appLabel(media.packageName()));
+            String source = Text.upper(media.radio() ? getString(R.string.slot_radio)
+                    : media.nwd() ? getString(R.string.slot_music) : appLabel(media.packageName()));
             card.show(source, title != null ? title : appLabel(media.packageName()), media.artist(), media.art(),
                     playing, media.position(), media.duration(), media.rate(), media.updated());
         } else {
@@ -751,6 +778,9 @@ public final class HomeActivity extends Activity
     }
 
     private void openPlayer(View from) {
+        // The NWD radio and music player open their own screens (hidden from the app list).
+        android.content.ComponentName nwd = media.nwdApp();
+        if (nwd != null && startSafely(Intent.makeMainActivity(nwd))) return;
         // Until track info is allowed, the card says so and a tap goes straight to the switch.
         if (!media.hasAccess()) {
             openTrackInfoAccess();

@@ -127,6 +127,7 @@
     <string name="nwd_doors_hidden">Κρυμμένο</string>
     <string name="nwd_doors_help">Όταν ανοίγει μια πόρτα, το Car Info δείχνει δικό του παράθυρο με το αυτοκίνητο από πάνω, πάνω από το Cockpit. Το Cockpit γυρίζει ήδη το δικό του αυτοκίνητο προς την ανοιχτή πόρτα, οπότε το παράθυρο μπορεί να φύγει. Κλείνει μόνο με ADB, μία φορά, και μένει κλειστό (εκτός αν γίνει επαναφορά του Car Info):\n\nsettings put system %1$s 1\n\nΓια να ξαναεμφανιστεί: το ίδιο με 0.</string>
     <string name="screen_off">Σβήσιμο οθόνης</string>
+    <string name="dsp">DSP</string>
     <string name="car_data_live">Ενεργά</string>
     <string name="car_data_adb">Χρειάζεται ADB</string>
     <string name="car_data_waiting">Αναμονή για την Car Info</string>

@@ -21,7 +21,8 @@ import java.util.List;
  * The player behind the media card. With track info allowed (MediaListener enabled) it watches every media
  * session and follows the one playing: title, artist, art, position. Players that publish no session are
  * read from their media notification instead. Without access the keys go out as media button events and
- * AudioManager.isMusicActive() is the only thing known.
+ * AudioManager.isMusicActive() is the only thing known. On an NWD unit, its radio and its music player have no
+ * session at all: while one of them is the unit's source, NwdMedia speaks for it, access or not.
  */
 final class MediaWatcher implements MediaSessionManager.OnActiveSessionsChangedListener {
     interface Listener {
@@ -33,6 +34,7 @@ final class MediaWatcher implements MediaSessionManager.OnActiveSessionsChangedL
     private final AudioManager audio;
     private final ComponentName service;
     private final Listener listener;
+    private final NwdMedia nwd;
     private final Handler handler = new Handler(Looper.getMainLooper());
     /** Every session we listen to, the followed one among them. */
     private final List<MediaController> watched = new ArrayList<>();
@@ -68,6 +70,32 @@ final class MediaWatcher implements MediaSessionManager.OnActiveSessionsChangedL
         sessions = (MediaSessionManager) context.getSystemService(Context.MEDIA_SESSION_SERVICE);
         audio = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
         service = new ComponentName(context, MediaListener.class);
+        nwd = new NwdMedia(context, new NwdMedia.Listener() {
+            @Override public void onNwdMediaChanged() {
+                listener.onMediaChanged();
+            }
+        });
+    }
+
+    /** Stops following the NWD player too; when Home goes for good. */
+    void release() {
+        stop();
+        nwd.stop();
+    }
+
+    /** Whether the card shows the NWD radio or music player, which need no track-info access. */
+    boolean nwd() {
+        return nwd.active();
+    }
+
+    /** Whether it shows the NWD radio, which has nothing to pause: its middle key opens the radio instead. */
+    boolean radio() {
+        return nwd.active() && nwd.radio();
+    }
+
+    /** The NWD player's screen, while it is the one shown. */
+    ComponentName nwdApp() {
+        return nwd.active() ? nwd.app() : null;
     }
 
     ComponentName service() {
@@ -85,6 +113,8 @@ final class MediaWatcher implements MediaSessionManager.OnActiveSessionsChangedL
 
     void start() {
         watching = true;
+        // Kept on while other apps are in front (see release()): the NWD player names a track only when it starts.
+        nwd.start();
         MediaListener.observer = notificationChanged;
         if (hasAccess()) {
             try {
@@ -172,22 +202,25 @@ final class MediaWatcher implements MediaSessionManager.OnActiveSessionsChangedL
 
     /** A player is known: a media session, or a media notification from a player without one. */
     boolean hasSession() {
-        return controller != null || notificationTrack() != null;
+        return nwd.active() || controller != null || notificationTrack() != null;
     }
 
     String packageName() {
+        if (nwd.active()) return nwd.app().getPackageName();
         if (controller != null) return controller.getPackageName();
         MediaListener.Track t = notificationTrack();
         return t == null ? null : t.packageName;
     }
 
     String title() {
+        if (nwd.active()) return nwd.title();
         String s = text(MediaMetadata.METADATA_KEY_TITLE, MediaMetadata.METADATA_KEY_DISPLAY_TITLE);
         MediaListener.Track t = notificationTrack();
         return s != null || t == null ? s : t.title;
     }
 
     String artist() {
+        if (nwd.active()) return nwd.artist();
         String s = text(MediaMetadata.METADATA_KEY_ARTIST, MediaMetadata.METADATA_KEY_ALBUM_ARTIST,
                 MediaMetadata.METADATA_KEY_DISPLAY_SUBTITLE);
         MediaListener.Track t = notificationTrack();
@@ -195,6 +228,7 @@ final class MediaWatcher implements MediaSessionManager.OnActiveSessionsChangedL
     }
 
     Bitmap art() {
+        if (nwd.active()) return null;
         MediaMetadata m = metadata();
         Bitmap b = null;
         if (m != null) {
@@ -217,33 +251,40 @@ final class MediaWatcher implements MediaSessionManager.OnActiveSessionsChangedL
 
     boolean playing() {
         // Some players never report their state; any music on the speakers counts.
+        if (nwd.active()) return nwd.playing();
         PlaybackState state = state();
         return state != null ? isPlaying(state) || audio.isMusicActive() : audio.isMusicActive();
     }
 
     /** Position in ms at {@link #updated()}, or -1 when unknown. */
     long position() {
+        if (nwd.active()) return nwd.position();
         PlaybackState s = state();
         return s == null ? -1 : s.getPosition();
     }
 
     long updated() {
+        if (nwd.active()) return nwd.updated();
         PlaybackState s = state();
         return s == null ? 0 : s.getLastPositionUpdateTime();
     }
 
     float rate() {
+        if (nwd.active()) return nwd.playing() && !nwd.radio() ? 1f : 0f;
         PlaybackState s = state();
         return s == null ? 0f : s.getPlaybackSpeed();
     }
 
     long duration() {
+        if (nwd.active()) return nwd.duration();
         MediaMetadata m = metadata();
         return m == null ? 0 : m.getLong(MediaMetadata.METADATA_KEY_DURATION);
     }
 
     void playPause() {
-        if (controller == null) {
+        if (nwd.active()) {
+            nwd.playPause();
+        } else if (controller == null) {
             key(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE);
         } else if (playing()) {
             controller.getTransportControls().pause();
@@ -253,12 +294,14 @@ final class MediaWatcher implements MediaSessionManager.OnActiveSessionsChangedL
     }
 
     void next() {
-        if (controller == null) key(KeyEvent.KEYCODE_MEDIA_NEXT);
+        if (nwd.active()) nwd.next();
+        else if (controller == null) key(KeyEvent.KEYCODE_MEDIA_NEXT);
         else controller.getTransportControls().skipToNext();
     }
 
     void previous() {
-        if (controller == null) key(KeyEvent.KEYCODE_MEDIA_PREVIOUS);
+        if (nwd.active()) nwd.previous();
+        else if (controller == null) key(KeyEvent.KEYCODE_MEDIA_PREVIOUS);
         else controller.getTransportControls().skipToPrevious();
     }
 
