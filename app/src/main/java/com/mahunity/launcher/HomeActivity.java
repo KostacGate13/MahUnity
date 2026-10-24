@@ -767,7 +767,9 @@ public final class HomeActivity extends Activity
     }
 
     @Override public void onLedsChanged() {
-        onAmbientChanged();
+        // A strip said how many LEDs it has, connected or dropped: the bar again, at that length.
+        if (ambient != null) ambient.apply();
+        else onAmbientChanged();
         if (lightsSettings != null && shown == lightsSettings.panel) lightsSettings.refresh();
     }
 

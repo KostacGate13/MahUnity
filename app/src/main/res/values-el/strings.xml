@@ -163,6 +163,19 @@
     <string name="set_led_fuel_low">Βενζίνη: κόκκινο έως</string>
     <string name="set_led_fuel_high">Βενζίνη: δικό τους χρώμα από</string>
     <string name="set_led_redline">Στροφές: αναβοσβήνει από</string>
+    <string name="set_led_bar_from">Μπάρα στροφών: αρχίζει από</string>
+    <string name="set_led_pixels">Μπάρα στροφών: LED</string>
+    <string name="set_led_sweep">Μπάρα στροφών: δοκιμή</string>
+    <string name="led_pixels_auto">όσα λέει το χειριστήριο</string>
+    <string name="led_pixels_auto_found">όσα λέει το χειριστήριο (%1$d)</string>
+    <string name="led_pixels_count">%1$d LED</string>
+    <string name="led_pixels_hint">0: όσα λέει το χειριστήριο</string>
+    <string name="led_report_pixels">LED κατά το χειριστήριο: %1$s</string>
+    <string name="led_report_unsaid">δεν απάντησε</string>
+    <string name="led_report_each">Μπάρα στροφών: LED προς LED</string>
+    <string name="led_report_too_long">Μπάρα στροφών: ένα χρώμα (πολλά LED για μία αποστολή)</string>
+    <string name="led_report_one">Μπάρα στροφών: ένα χρώμα (άγνωστο πλήθος LED: ορίστε το στο «Μπάρα στροφών: LED»)</string>
+    <string name="led_report_answer">Τελευταία απάντηση: %1$s</string>
     <string name="set_led_brake">Race: φρένο</string>
     <string-array name="led_brakes">
         <item>Ευαίσθητο</item>
@@ -171,7 +184,7 @@
     </string-array>
     <string name="set_led_status">Κατάσταση</string>
     <string name="set_led_help">Βοήθεια</string>
-    <string name="led_help">Το Cockpit ελέγχει μόνο του τα Bluetooth χειριστήρια LED: ZENGGE (LEDnetWF), ELK-BLEDOM (Lotus Lantern, Duoco Strip και τα περισσότερα κιτ για τα πόδια), Triones και Magic Home BLE (HappyLighting).\n\nΚάθε χειριστήριο δέχεται μία σύνδεση τη φορά. Κλείστε πρώτα τη δική του εφαρμογή, και στη μονάδα και στο κινητό, και μετά διαλέξτε το εδώ.\n\nΚανονικό: το ταμπλό ακολουθεί τις στροφές (το χρώμα του, κίτρινο, κόκκινο, και αναβοσβήνει στο όριο), τα πόδια τη βενζίνη (κόκκινο ως το κάτω όριο, πορτοκαλί, το χρώμα τους από το πάνω όριο).\nRace: πράσινο όσο επιταχύνετε, κόκκινο όταν φρενάρετε, και το ταμπλό αναβοσβήνει στο όριο στροφών.\nAmbient: το χρώμα ατμόσφαιρας του Cockpit.\nΣταθερό: το χρώμα της κάθε λωρίδας.\n\nΑν μια λωρίδα γράφει «άγνωστος τύπος», η Κατάσταση δείχνει τις υπηρεσίες της: στείλτε τες για να προστεθεί.</string>
+    <string name="led_help">Το Cockpit ελέγχει μόνο του τα Bluetooth χειριστήρια LED: ZENGGE (LEDnetWF), ELK-BLEDOM (Lotus Lantern, Duoco Strip και τα περισσότερα κιτ για τα πόδια), Triones και Magic Home BLE (HappyLighting).\n\nΚάθε χειριστήριο δέχεται μία σύνδεση τη φορά. Κλείστε πρώτα τη δική του εφαρμογή, και στη μονάδα και στο κινητό, και μετά διαλέξτε το εδώ.\n\nΚανονικό: το ταμπλό γίνεται μπάρα στροφών, όπως στα τιμόνια των αγωνιστικών: στο ρελαντί ανάβει πράσινη η αριστερή άκρη, όσο ανεβαίνουν οι στροφές γεμίζει προς τα δεξιά, κόκκινη στη μέση, μωβ στο τέλος, και στο όριο αναβοσβήνει ολόκληρη. Αυτό θέλει λωρίδα addressable («symphony») σε χειριστήριο ZENGGE, ρυθμισμένη σε ένα τμήμα (segment) στην εφαρμογή του· οποιαδήποτε άλλη αλλάζει χρώμα ολόκληρη με την ίδια κλίμακα. Η «Μπάρα στροφών: δοκιμή» την τρέχει μία φορά. Τα πόδια ακολουθούν τη βενζίνη (κόκκινο ως το κάτω όριο, πορτοκαλί, το χρώμα τους από το πάνω όριο).\nRace: πράσινο όσο επιταχύνετε, κόκκινο όταν φρενάρετε, και το ταμπλό αναβοσβήνει στο όριο στροφών.\nAmbient: το χρώμα ατμόσφαιρας του Cockpit.\nΣταθερό: το χρώμα της κάθε λωρίδας.\n\nΑν μια λωρίδα γράφει «άγνωστος τύπος», η Κατάσταση δείχνει τις υπηρεσίες της: στείλτε τες για να προστεθεί.</string>
     <string name="led_choose">Επιλογή</string>
     <string name="led_scan_none">Καμία (αφαίρεση)</string>
     <string name="led_no_ble">Η μονάδα δεν έχει Bluetooth LE για εφαρμογές.</string>

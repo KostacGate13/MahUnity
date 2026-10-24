@@ -13,8 +13,8 @@ import android.view.View;
 
 /**
  * The Lights tab: a card for each LED strip (the dashboard, the footwells) with its switch, a bar glowing in the
- * colour it shows right now and the colours to choose from; under them the four modes, and the way to the rest
- * of the settings.
+ * colour it shows right now (the dashboard's rev bar LED by LED) and the colours to choose from; under them the
+ * four modes, and the way to the rest of the settings.
  */
 final class LightsView extends View {
     interface Listener {
@@ -47,6 +47,7 @@ final class LightsView extends View {
     private final String[] status = {"", ""};
     private final boolean[] on = new boolean[2];
     private final int[] chosen = new int[2], shown = new int[2];
+    private int[] revBar;
     private int mode;
     private float radius, pad, swatchR;
     private Listener listener;
@@ -81,6 +82,7 @@ final class LightsView extends View {
         chosen[1] = a.bottomColor;
         shown[0] = a.shownTop;
         shown[1] = a.shownBottom;
+        revBar = a.topBar;
         mode = a.mode;
         status[0] = topStatus;
         status[1] = bottomStatus;
@@ -139,7 +141,8 @@ final class LightsView extends View {
                     TextUtils.TruncateAt.END);
             c.drawText(st, 0, st.length(), r.left + pad + nameW + pad, r.top + pad + title.getTextSize() * 0.8f, note);
             drawSwitch(c, switches[i], on[i]);
-            drawBar(c, bars[i], on[i] ? shown[i] : 0);
+            if (i == 0 && revBar != null && on[0]) drawLeds(c, bars[0], revBar);
+            else drawBar(c, bars[i], on[i] ? shown[i] : 0);
             for (int k = 0; k < Ambient.COLORS.length; k++) {
                 int col = Ambient.COLORS[k];
                 swatch.setColor(0xFF000000 | col);
@@ -198,6 +201,27 @@ final class LightsView extends View {
         glow.setShadowLayer(r.height() * 1.6f, 0, 0, col);
         c.drawRoundRect(r, rr, rr, glow);
         glow.clearShadowLayer();
+    }
+
+    /** The rev bar: its LEDs side by side, a glow under the lit ones in the colour at their tip. */
+    private void drawLeds(Canvas c, RectF r, int[] leds) {
+        int n = leds.length, lit = 0;
+        for (int k = 0; k < n; k++) if ((leds[k] & 0xFFFFFF) != 0) lit = k + 1;
+        float w = r.width() / n, gap = w >= 5 ? Math.max(1f, w * 0.18f) : 0, rr = r.height() / 2;
+        if (lit > 0) {
+            int tip = 0xFF000000 | leds[lit - 1];
+            fill.setShader(null);
+            fill.setColor(tip);
+            fill.setShadowLayer(r.height() * 1.6f, 0, 0, tip);
+            c.drawRoundRect(r.left, r.top, r.left + lit * w, r.bottom, rr, rr, fill);
+            fill.clearShadowLayer();
+        }
+        fill.setShader(null);
+        for (int k = 0; k < n; k++) {
+            boolean isLit = (leds[k] & 0xFFFFFF) != 0;
+            fill.setColor(isLit ? 0xFF000000 | leds[k] : 0x24FFFFFF);
+            c.drawRect(r.left + k * w + gap / 2, r.top, r.left + (k + 1) * w - gap / 2, r.bottom, fill);
+        }
     }
 
     @Override public boolean onTouchEvent(MotionEvent e) {

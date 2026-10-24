@@ -34,6 +34,34 @@ abstract class LedProtocol {
         return null;
     }
 
+    /** The characteristic it answers on, for controllers that report their strip; null if none. */
+    UUID answers() {
+        return null;
+    }
+
+    /**
+     * Asks the controller how many LEDs its strip has, the answer coming on answers(); null if it cannot say.
+     * Variants differ between models, so a second try may ask differently.
+     */
+    byte[] askPixels(int attempt) {
+        return null;
+    }
+
+    /** The LED count in an answer from the controller, or -1 if the answer is not that. */
+    int pixels(byte[] answer) {
+        return -1;
+    }
+
+    /** Whether it can light each LED of an addressable ("symphony") strip in its own colour. */
+    boolean addressable() {
+        return false;
+    }
+
+    /** A colour for each LED along the strip, left to right, exactly as many as it has; null if not addressable(). */
+    byte[] pixels(int[] rgb) {
+        return null;
+    }
+
     private static UUID uuid(String shortId) {
         return UUID.fromString("0000" + shortId + "-0000-1000-8000-00805f9b34fb");
     }
@@ -64,8 +92,11 @@ abstract class LedProtocol {
     }
 
     /**
-     * ZENGGE's LEDnetWF controllers: every command in an envelope (a counter, the length twice) on FF01; the
-     * colour as hue (halved), saturation and value in percent, then a sum of the command's bytes.
+     * ZENGGE's LEDnetWF controllers: every command in an envelope (a counter, its length, a type: 0B a command,
+     * 0A a question) on FF01, answers on FF02. Inside, the same commands as ZENGGE's Wi-Fi "addressable A3"
+     * controllers (see flux_led): power 3B 23/24, a colour as 3B A1 and hue (halved), saturation and value in
+     * percent; for a symphony strip, 59 and a colour for every LED; 63 asks for the strip's settings. Each ends
+     * in the sum of its bytes. (The envelope as in lednetwf_ble, the commands as in flux_led.)
      */
     static final class Zengge extends LedProtocol {
         private int sequence;
@@ -78,29 +109,107 @@ abstract class LedProtocol {
             return hex("00 01 80 00 00 04 05 0a 81 8a 8b 96");
         }
 
+        @Override UUID answers() {
+            return LedProtocol.uuid("ff02");
+        }
+
         @Override byte[] power(boolean on) {
-            byte[] p = hex("00 00 80 00 00 0d 0e 0b 3b 23 00 00 00 00 00 00 00 32 00 00 00");
-            p[9] = (byte) (on ? 0x23 : 0x24);
-            return seal(p);
+            byte[] c = hex("3b 23 00 00 00 00 00 00 00 32 00 00");
+            if (!on) c[1] = 0x24;
+            return wrap(c, 0x0b);
         }
 
         @Override byte[] color(int rgb) {
             float[] hsv = new float[3];
             Color.RGBToHSV(rgb >> 16 & 0xFF, rgb >> 8 & 0xFF, rgb & 0xFF, hsv);
-            byte[] p = hex("00 00 80 00 00 0d 0e 0b 3b a1 00 64 64 00 00 00 00 00 00 00 00");
-            p[10] = (byte) Math.round(hsv[0] / 2);
-            p[11] = (byte) Math.round(hsv[1] * 100);
-            p[12] = (byte) Math.round(hsv[2] * 100);
-            return seal(p);
+            byte[] c = hex("3b a1 00 64 64 00 00 00 00 00 00 00");
+            c[2] = (byte) Math.round(hsv[0] / 2);
+            c[3] = (byte) Math.round(hsv[1] * 100);
+            c[4] = (byte) Math.round(hsv[2] * 100);
+            return wrap(c, 0x0b);
         }
 
-        /** The counter, and the sum of the command (bytes 8 to 19) in its last byte. */
-        private byte[] seal(byte[] p) {
+        /** 63 12 21 and F0 (as the BLE controllers are asked) or 0F (as ZENGGE's Wi-Fi ones are). */
+        @Override byte[] askPixels(int attempt) {
+            byte[] q = hex(attempt == 0 ? "63 12 21 f0" : "63 12 21 0f");
+            return wrap(q, 0x0a);
+        }
+
+        /**
+         * The answer to askPixels, in the same envelope: 63 (or 00 63), then the LEDs in a segment (two bytes),
+         * 00, the segments, the chip, the wiring... Some controllers put it in JSON instead, the bytes in hex as
+         * "payload".
+         */
+        @Override int pixels(byte[] answer) {
+            int n = answer.length > 8 ? setting(java.util.Arrays.copyOfRange(answer, 8, answer.length)) : -1;
+            return n > 0 ? n : setting(answer);
+        }
+
+        private static int setting(byte[] b) {
+            if (b.length > 0 && b[0] == '{') {
+                String text = new String(b, java.nio.charset.StandardCharsets.ISO_8859_1);
+                int at = text.indexOf("\"payload\"");
+                int q = at < 0 ? -1 : text.indexOf('"', text.indexOf(':', at) + 1);
+                int end = q < 0 ? -1 : text.indexOf('"', q + 1);
+                if (end < 0 || (end - q - 1) % 2 != 0) return -1;
+                String h = text.substring(q + 1, end);
+                b = new byte[h.length() / 2];
+                for (int i = 0; i < b.length; i++) {
+                    int hi = Character.digit(h.charAt(2 * i), 16), lo = Character.digit(h.charAt(2 * i + 1), 16);
+                    if (hi < 0 || lo < 0) return -1;
+                    b[i] = (byte) (hi << 4 | lo);
+                }
+            }
+            int at = b.length > 0 && b[0] == 0x63 ? 0 : b.length > 1 && b[0] == 0x00 && b[1] == 0x63 ? 1 : -1;
+            if (at < 0 || b.length < at + 6) return -1;
+            int n = (b[at + 1] & 0xFF) << 8 | b[at + 2] & 0xFF;
+            return n > 0 && n <= 2048 ? n : -1;
+        }
+
+        @Override boolean addressable() {
+            return true;
+        }
+
+        /** 59, the length of it all (two bytes), a colour for every LED, then 00 1E, the effect (01: static), its speed and 00. */
+        @Override byte[] pixels(int[] rgb) {
+            int n = rgb.length, total = 9 + n * 3;
+            byte[] c = new byte[total - 1];
+            c[0] = 0x59;
+            c[1] = (byte) (total >> 8);
+            c[2] = (byte) total;
+            for (int i = 0; i < n; i++) {
+                c[3 + i * 3] = (byte) (rgb[i] >> 16);
+                c[4 + i * 3] = (byte) (rgb[i] >> 8);
+                c[5 + i * 3] = (byte) rgb[i];
+            }
+            int e = 3 + n * 3;
+            c[e] = 0x00;
+            c[e + 1] = 0x1e;
+            c[e + 2] = 0x01;
+            c[e + 3] = 0x64;
+            c[e + 4] = 0x00;
+            return wrap(c, 0x0b);
+        }
+
+        /** The envelope: 00, the counter, 80 00, the length (two bytes) and plus one, the type; then the command and its sum. */
+        private byte[] wrap(byte[] command, int type) {
             sequence = (sequence + 1) & 0xFF;
+            int length = command.length, inner = length + 1;
+            byte[] p = new byte[8 + inner];
+            p[0] = 0x00;
             p[1] = (byte) sequence;
+            p[2] = (byte) 0x80;
+            p[3] = 0x00;
+            p[4] = (byte) (inner >> 8);
+            p[5] = (byte) inner;
+            p[6] = (byte) (inner + 1);
+            p[7] = (byte) type;
             int sum = 0;
-            for (int i = 8; i < p.length - 1; i++) sum += p[i] & 0xFF;
-            p[p.length - 1] = (byte) sum;
+            for (int i = 0; i < length; i++) {
+                p[8 + i] = command[i];
+                sum += command[i] & 0xFF;
+            }
+            p[8 + length] = (byte) sum;
             return p;
         }
     }

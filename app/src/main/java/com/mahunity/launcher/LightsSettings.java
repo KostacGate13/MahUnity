@@ -19,8 +19,9 @@ import java.util.Locale;
 
 /**
  * The Light settings sheet: which Bluetooth device each strip is, the mode, brightness, the fuel and rev marks,
- * how hard a stop must be to count as braking, and what each strip is doing. Choosing a device scans for a while
- * and lists what answers, LED controllers first.
+ * where the rev bar starts and how many LEDs it has, a trial run of it, how hard a stop must be to count as
+ * braking, and what each strip is doing. Choosing a device scans for a while and lists what answers, LED
+ * controllers first.
  */
 final class LightsSettings {
     interface Host {
@@ -37,7 +38,8 @@ final class LightsSettings {
     private final Ambient ambient;
     private final LedStrips leds;
     private final Host host;
-    private final SettingsRows.Row rowTop, rowBottom, rowMode, rowBright, rowLow, rowHigh, rowRedline, rowBrake, rowStatus;
+    private final SettingsRows.Row rowTop, rowBottom, rowMode, rowBright, rowLow, rowHigh, rowRedline, rowBarFrom,
+            rowPixels, rowBrake, rowStatus;
     private int pendingRole = -1;
 
     LightsSettings(final Activity activity, Ambient ambient, LedStrips leds, final Host host) {
@@ -89,6 +91,21 @@ final class LightsSettings {
                 pickNumber(R.string.set_led_redline, LightsSettings.this.ambient.redline, true, 2);
             }
         });
+        rowBarFrom = rows.add(R.string.set_led_bar_from, new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                pickNumber(R.string.set_led_bar_from, LightsSettings.this.ambient.barFrom, true, 3);
+            }
+        });
+        rowPixels = rows.add(R.string.set_led_pixels, new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                pickNumber(R.string.set_led_pixels, LightsSettings.this.ambient.topPixels, true, 4);
+            }
+        });
+        rows.add(R.string.set_led_sweep, new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                LightsSettings.this.ambient.sweep();
+            }
+        });
         rowBrake = rows.add(R.string.set_led_brake, new View.OnClickListener() {
             @Override public void onClick(View v) {
                 pickBrake();
@@ -121,6 +138,11 @@ final class LightsSettings {
         rowLow.setValue(litres(ambient.fuelLow), false, 0);
         rowHigh.setValue(litres(ambient.fuelHigh), false, 0);
         rowRedline.setValue(ambient.redline + " rpm", false, 0);
+        rowBarFrom.setValue(ambient.barFrom + " rpm", false, 0);
+        int said = leds.pixels(LedStrips.TOP);
+        rowPixels.setValue(ambient.topPixels > 0 ? activity.getString(R.string.led_pixels_count, ambient.topPixels)
+                : said > 0 ? activity.getString(R.string.led_pixels_auto_found, said) : activity.getString(R.string.led_pixels_auto),
+                false, 0);
         rowBrake.setValue(activity.getResources().getStringArray(R.array.led_brakes)[brakeIndex()], false, 0);
         rowStatus.setValue(status(LedStrips.TOP) + " · " + status(LedStrips.BOTTOM), false, 0);
     }
@@ -138,7 +160,9 @@ final class LightsSettings {
         if (!leds.allowed()) return activity.getString(R.string.led_status_permission);
         if (!leds.available()) return activity.getString(R.string.led_status_bt_off);
         if (s.unsupported) return activity.getString(R.string.led_status_unknown);
-        if (s.state == LedStrips.READY) return s.protocol.name;
+        if (s.state == LedStrips.READY) {
+            return s.pixels > 0 ? s.protocol.name + " · " + activity.getString(R.string.led_pixels_count, s.pixels) : s.protocol.name;
+        }
         if (s.state == LedStrips.CONNECTING) return activity.getString(R.string.led_status_connecting);
         return activity.getString(R.string.led_status_off);
     }
@@ -151,6 +175,16 @@ final class LightsSettings {
             if (b.length() > 0) b.append("\n\n");
             b.append(activity.getString(names[role])).append(": ").append(status(role));
             if (s.address != null) b.append("\n").append(s.name).append(" · ").append(s.address);
+            if (s.state == LedStrips.READY && s.protocol.addressable()) {
+                int n = role == LedStrips.TOP ? ambient.pixels() : s.pixels;
+                b.append("\n").append(activity.getString(R.string.led_report_pixels, s.pixels > 0
+                        ? String.valueOf(s.pixels) : activity.getString(R.string.led_report_unsaid)));
+                if (role == LedStrips.TOP) {
+                    b.append("\n").append(activity.getString(leds.lightsEach(role, n) ? R.string.led_report_each
+                            : n > 0 ? R.string.led_report_too_long : R.string.led_report_one));
+                }
+            }
+            if (s.answer != null) b.append("\n").append(activity.getString(R.string.led_report_answer, s.answer));
             if (s.services != null) b.append("\n").append(s.services);
         }
         return b.toString();
@@ -293,12 +327,16 @@ final class LightsSettings {
                 }).show();
     }
 
-    /** A number: litres (with a decimal) for the fuel marks, rpm for the redline. which: 0 low, 1 high, 2 redline. */
+    /**
+     * A number: litres (with a decimal) for the fuel marks, rpm for the redline and the bar's start, a count of
+     * LEDs (0 for the controller's). which: 0 low, 1 high, 2 redline, 3 bar start, 4 LEDs.
+     */
     private void pickNumber(int titleRes, float current, boolean whole, final int which) {
         final EditText field = new EditText(activity);
         field.setInputType(InputType.TYPE_CLASS_NUMBER | (whole ? 0 : InputType.TYPE_NUMBER_FLAG_DECIMAL));
         field.setText(whole ? String.valueOf((int) current) : litres(current).replace(" L", ""));
         field.setSelectAllOnFocus(true);
+        if (which == 4) field.setHint(R.string.led_pixels_hint);
         new AlertDialog.Builder(activity).setTitle(titleRes).setView(field)
                 .setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener() {
                     @Override public void onClick(DialogInterface d, int w) {
@@ -310,7 +348,9 @@ final class LightsSettings {
                         }
                         if (which == 0) ambient.fuelLow = Math.max(0f, Math.min(v, ambient.fuelHigh));
                         else if (which == 1) ambient.fuelHigh = Math.max(ambient.fuelLow, Math.min(v, 200f));
-                        else ambient.redline = Math.round(Math.max(1500f, Math.min(v, 9000f)));
+                        else if (which == 2) ambient.redline = Math.round(Math.max(Math.max(1500f, ambient.barFrom + 500f), Math.min(v, 9000f)));
+                        else if (which == 3) ambient.barFrom = Math.round(Math.max(0f, Math.min(v, ambient.redline - 500f)));
+                        else ambient.topPixels = Math.round(Math.max(0f, Math.min(v, 1000f)));
                         changed();
                     }
                 }).setNegativeButton(android.R.string.cancel, null).show();

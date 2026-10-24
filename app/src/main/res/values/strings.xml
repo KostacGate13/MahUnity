@@ -165,6 +165,19 @@
     <string name="set_led_fuel_low">Fuel: red up to</string>
     <string name="set_led_fuel_high">Fuel: own colour from</string>
     <string name="set_led_redline">Revs: shift light from</string>
+    <string name="set_led_bar_from">Rev bar: starts at</string>
+    <string name="set_led_pixels">Rev bar: LEDs</string>
+    <string name="set_led_sweep">Rev bar: try it</string>
+    <string name="led_pixels_auto">as the controller says</string>
+    <string name="led_pixels_auto_found">as the controller says (%1$d)</string>
+    <string name="led_pixels_count">%1$d LEDs</string>
+    <string name="led_pixels_hint">0: as the controller says</string>
+    <string name="led_report_pixels">LEDs, as the controller says: %1$s</string>
+    <string name="led_report_unsaid">it has not said</string>
+    <string name="led_report_each">Rev bar: LED by LED</string>
+    <string name="led_report_too_long">Rev bar: one colour (too many LEDs for one write)</string>
+    <string name="led_report_one">Rev bar: one colour (LED count not known: set it under Rev bar: LEDs)</string>
+    <string name="led_report_answer">Last answer: %1$s</string>
     <string name="set_led_brake">Race: braking</string>
     <string-array name="led_brakes">
         <item>Sensitive</item>
@@ -173,7 +186,7 @@
     </string-array>
     <string name="set_led_status">Status</string>
     <string name="set_led_help">Help</string>
-    <string name="led_help">Cockpit drives Bluetooth LED controllers itself: ZENGGE (LEDnetWF), ELK-BLEDOM (Lotus Lantern, Duoco Strip and most footwell kits), Triones and Magic Home BLE (HappyLighting).\n\nA controller takes one connection at a time. Close its own app first, on the unit and on your phone, then choose it here.\n\nNormal: the dashboard follows the revs (its colour, yellow, red, flashing at the shift light), the footwells the fuel (red up to the low mark, orange, their colour from the high mark).\nRace: green while the car pulls, red while it brakes, with the shift light.\nAmbient: Cockpit\'s ambient colour.\nStatic: each strip\'s own colour.\n\nIf a strip says \'unknown type\', Status lists its services: send them over and its protocol can be added.</string>
+    <string name="led_help">Cockpit drives Bluetooth LED controllers itself: ZENGGE (LEDnetWF), ELK-BLEDOM (Lotus Lantern, Duoco Strip and most footwell kits), Triones and Magic Home BLE (HappyLighting).\n\nA controller takes one connection at a time. Close its own app first, on the unit and on your phone, then choose it here.\n\nNormal: the dashboard is a rev bar, as on a racing car\'s wheel: at idle its left end is green, it fills to the right as the revs rise, red half way, purple at the end, and all of it flashes at the shift light. That takes an addressable (\"symphony\") strip on a ZENGGE controller, set to one segment in its app; any other strip changes colour along the same scale. Rev bar: try it runs it once. The footwells follow the fuel (red up to the low mark, orange, their colour from the high mark).\nRace: green while the car pulls, red while it brakes, with the shift light.\nAmbient: Cockpit\'s ambient colour.\nStatic: each strip\'s own colour.\n\nIf a strip says \'unknown type\', Status lists its services: send them over and its protocol can be added.</string>
     <string name="led_choose">Choose</string>
     <string name="led_scan_none">None (remove)</string>
     <string name="led_no_ble">This unit has no Bluetooth LE that apps can use.</string>
