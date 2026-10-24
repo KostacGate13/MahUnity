@@ -173,7 +173,15 @@ ADB**:
 adb shell pm grant com.mahunity.launcher android.permission.READ_LOGS
 ```
 
-(το `tools/install.sh` το κάνει μόνο του). Σε Android 13 και μετά, κάθε φορά που ξεκινά η μονάδα το σύστημα
+(το `tools/install.sh` το κάνει μόνο του). Η Car Info δείχνει ένα σύντομο μήνυμα («debugState…») κάθε φορά
+που το Cockpit ανάβει την καταγραφή της· το Cockpit το κάνει μόνο όταν χρειάζεται. Για να μην εμφανίζεται ποτέ,
+η Car Info μπορεί να καταγράφει μόνη της από κάθε εκκίνηση (και αυτό το κάνει το `tools/install.sh`):
+
+```sh
+adb shell settings put system canapp_debug 1
+```
+
+Σε Android 13 και μετά, κάθε φορά που ξεκινά η μονάδα το σύστημα
 ρωτάει αν το Cockpit μπορεί να δει τα logs: **Να επιτρέπεται**. Η κατάσταση φαίνεται στις
 **Ρυθμίσεις → Δεδομένα Car Info**.
 

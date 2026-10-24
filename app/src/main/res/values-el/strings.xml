@@ -132,7 +132,7 @@
     <string name="car_data_adb">Χρειάζεται ADB</string>
     <string name="car_data_waiting">Αναμονή για την Car Info</string>
     <string name="car_data_permission">Ενεργοποίηση: Ρυθμίσεις ▸ Δεδομένα Car Info</string>
-    <string name="car_data_help">Βενζίνη, μπαταρία, ψυκτικό και πιέσεις ελαστικών έρχονται από την Car Info της NWD, μέσα από το log του συστήματος· το Cockpit δεν αγγίζει το CANBus.\n\nΤο Android αφήνει μια εφαρμογή να διαβάζει αυτό το log μόνο με άδεια που δίνεται μία φορά από ADB:\n\nadb shell pm grant %1$s android.permission.READ_LOGS\n\nΣε Android 13 και μετά, το σύστημα ρωτάει επίσης για πρόσβαση στα logs κάθε φορά που ξεκινά η μονάδα: πατήστε «Να επιτρέπεται».</string>
+    <string name="car_data_help">Βενζίνη, μπαταρία, ψυκτικό και πιέσεις ελαστικών έρχονται από την Car Info της NWD, μέσα από το log του συστήματος· το Cockpit δεν αγγίζει το CANBus.\n\nΤο Android αφήνει μια εφαρμογή να διαβάζει αυτό το log μόνο με άδεια που δίνεται μία φορά από ADB:\n\nadb shell pm grant %1$s android.permission.READ_LOGS\n\nΣε Android 13 και μετά, το σύστημα ρωτάει επίσης για πρόσβαση στα logs κάθε φορά που ξεκινά η μονάδα: πατήστε «Να επιτρέπεται».\n\nΗ Car Info δείχνει ένα σύντομο μήνυμα κάθε φορά που το Cockpit ανάβει την καταγραφή της. Για να καταγράφει μόνη της από κάθε εκκίνηση, και να μην το δείχνει ποτέ:\n\nadb shell settings put system canapp_debug 1</string>
     <string name="header_sources">Πηγές ήχου</string>
     <string name="set_ui_style">Στυλ εμφάνισης</string>
     <string name="ui_glass">Γυαλί</string>

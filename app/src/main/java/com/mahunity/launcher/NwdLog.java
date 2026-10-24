@@ -39,8 +39,14 @@ final class NwdLog {
     private static final int RAISE = 0x2E, CAR_STATE = 0x4A;
     /** Raise's climate frame, which carries the outside temperature. */
     static final int CLIMATE = 0x03;
-    /** Quiet this long and Car Info probably restarted, its switch back off: flip it again. */
-    private static final long QUIET_MS = 60_000;
+    /**
+     * Car Info shows a toast each time it gets the switch, so it goes out only when needed: once, if the log has
+     * nothing a few seconds after reading starts; again only after a minute without a single frame (Car Info
+     * probably restarted, its switch back off), and at most every ten minutes. Never while Car Info's own setting
+     * (canapp_debug, see tools/install.sh) turns its logging on at every start.
+     */
+    private static final long FIRST_MS = 5_000, QUIET_MS = 60_000, SWITCH_MS = 10 * 60_000;
+    private static final String LOG_SETTING = "canapp_debug";
     /** logcat ending this soon means access was refused (Android 13+); asked again only after BACKOFF_MS. */
     private static final long REFUSED_MS = 5_000, BACKOFF_MS = 10 * 60_000;
 
@@ -48,7 +54,15 @@ final class NwdLog {
     private final Listener listener;
     private final Handler main = new Handler(Looper.getMainLooper());
     private java.lang.Process logcat;
-    private long lastFrameAt, lastSwitchAt = -QUIET_MS, refusedAt = -BACKOFF_MS;
+    private long lastSwitchAt, readingSince, refusedAt = -BACKOFF_MS;
+    private boolean switched;
+    /** When the reader last saw a valid frame, repeats included; written on its thread. */
+    private volatile long seenAt;
+    private final Runnable firstCheck = new Runnable() {
+        @Override public void run() {
+            wake(false);
+        }
+    };
     /** Frames read since Home started, for the status in Settings. */
     int frames;
 
@@ -93,14 +107,24 @@ final class NwdLog {
     void wake(boolean start) {
         if (!allowed()) return;
         long now = SystemClock.elapsedRealtime();
-        if (now - lastFrameAt > QUIET_MS && now - lastSwitchAt > QUIET_MS) {
+        if (start && logcat == null && now - refusedAt > BACKOFF_MS) start();
+        if (logcat == null || loggingFromBoot()) return;
+        long heard = Math.max(seenAt, readingSince);
+        boolean first = !switched && seenAt == 0 && now - readingSince >= FIRST_MS;
+        boolean again = now - heard > QUIET_MS && (!switched || now - lastSwitchAt > SWITCH_MS);
+        if (first || again) {
+            switched = true;
             lastSwitchAt = now;
             context.sendBroadcast(new Intent(ACTION_DEBUG).setPackage(CAR_INFO)
                     .putExtra("ext_appkey", "canapp")
                     .putExtra("ext_cmd", "business_debug")
                     .putExtra("ext_cmd_data", "1"));
         }
-        if (start && logcat == null && now - refusedAt > BACKOFF_MS) start();
+    }
+
+    /** Whether Car Info's setting keeps its logging on from every start, so the switch is never needed. */
+    private boolean loggingFromBoot() {
+        return (android.provider.Settings.System.getInt(context.getContentResolver(), LOG_SETTING, 0) & 1) == 1;
     }
 
     void stop() {
@@ -118,6 +142,10 @@ final class NwdLog {
         }
         logcat = p;
         final long startedAt = SystemClock.elapsedRealtime();
+        readingSince = startedAt;
+        // The log's buffer comes first: if it holds no frame by then, Car Info is not logging.
+        main.removeCallbacks(firstCheck);
+        main.postDelayed(firstCheck, FIRST_MS + 100);
         Thread reader = new Thread("nwd-log") {
             @Override public void run() {
                 byte[] last1 = null, last4 = null, last3 = null;
@@ -126,6 +154,7 @@ final class NwdLog {
                     for (String line; (line = in.readLine()) != null; ) {
                         final byte[] f = frame(line);
                         if (f == null) continue;
+                        seenAt = SystemClock.elapsedRealtime();
                         // Only changes reach the main thread; the box repeats itself.
                         if (f[1] == CLIMATE) {
                             if (java.util.Arrays.equals(f, last3)) continue;
@@ -139,7 +168,6 @@ final class NwdLog {
                         }
                         main.post(new Runnable() {
                             @Override public void run() {
-                                lastFrameAt = SystemClock.elapsedRealtime();
                                 frames++;
                                 listener.onCarFrame(f);
                             }
