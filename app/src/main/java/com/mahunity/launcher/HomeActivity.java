@@ -56,9 +56,10 @@ public final class HomeActivity extends Activity
     private static final String PREF_BOTTOM_WIDGET = "bottom_widget";
     private static final String PREF_TANK = "tank";
     /** Upper widget choices, and lower ones, in the order Settings lists them. */
-    private static final int TOP_CLOCK = 0, TOP_GAUGE_60S = 1, TOP_GAUGE_80S = 2;
+    private static final int TOP_CLOCK = 0, TOP_GAUGE_60S = 1, TOP_GAUGE_80S = 2, TOP_MUSTANG = 3, TOP_VFD = 4;
     private static final int BOTTOM_MUSIC = 0, BOTTOM_FUEL = 1, BOTTOM_TYRES = 2, BOTTOM_TRIP = 3;
-    private static final int[] TOP_NAMES = {R.string.widget_clock, R.string.widget_gauge60, R.string.widget_gauge80};
+    private static final int[] TOP_NAMES = {R.string.widget_clock, R.string.widget_gauge60, R.string.widget_gauge80,
+        R.string.widget_mustang, R.string.widget_vfd};
     private static final int[] BOTTOM_NAMES = {R.string.slot_music, R.string.widget_fuel, R.string.widget_tyres,
             R.string.widget_trip};
     /** The Corsa E's tank, in litres. */
@@ -183,6 +184,8 @@ public final class HomeActivity extends Activity
         int topWidget = prefs.getInt(PREF_TOP_WIDGET, TOP_CLOCK);
         if (topWidget == TOP_GAUGE_60S) gauge = new Gauge60(this);
         else if (topWidget == TOP_GAUGE_80S) gauge = new Gauge80(this);
+        else if (topWidget == TOP_MUSTANG) gauge = new GaugeRibbon(this);
+        else if (topWidget == TOP_VFD) gauge = new GaugeVfd(this);
         else clock = new ClockView(this);
         View upper = clock != null ? clock : gauge;
 

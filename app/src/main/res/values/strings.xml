@@ -100,8 +100,10 @@
     <string name="set_top_widget">Upper widget</string>
     <string name="set_bottom_widget">Lower widget</string>
     <string name="widget_clock">Clock</string>
-    <string name="widget_gauge60">60s speedometer</string>
-    <string name="widget_gauge80">80s digital</string>
+    <string name="widget_gauge60">60s speedometer · Charger</string>
+    <string name="widget_gauge80">80s digital · Corvette</string>
+    <string name="widget_mustang">60s speedometer · Mustang</string>
+    <string name="widget_vfd">80s digital · Japanese</string>
     <string name="widget_fuel">Fuel</string>
     <string name="widget_tyres">Tyre pressure</string>
     <string name="widget_trip">Trip</string>

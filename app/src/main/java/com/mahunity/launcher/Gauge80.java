@@ -25,9 +25,6 @@ import android.text.TextPaint;
 final class Gauge80 extends GaugeView {
     private static final int GREEN = 0xFF5CE860, AMBER = 0xFFFFB420, RED = 0xFFFF3D2E;
     private static final int BAND = 40, STRIPES = 10;
-    /** Segments a to g lit for 0 to 9; a dash; all of them. */
-    private static final int[] DIGITS = {0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07, 0x7F, 0x6F};
-    private static final int DASH = 0x40, BLANK = 0;
     /** The band's outer edge: a part of an ellipse, from straight up at the bottom to this many degrees round. */
     private static final float BEND = 60f;
 
@@ -39,8 +36,8 @@ final class Gauge80 extends GaugeView {
     private final RectF speedBox = new RectF(), infoBox = new RectF();
     private final Path[] band = new Path[BAND];
     private final RectF[] stripes = new RectF[STRIPES];
-    private final Figures speed = new Figures(3, -1), time = new Figures(4, 1), heat = new Figures(3, -1),
-            volts = new Figures(3, 1);
+    private final Figures speed = new Figures(3, -1, 0), time = new Figures(4, 1, 0), heat = new Figures(3, -1, 0),
+            volts = new Figures(3, 1, 0);
     private final String unit, coolantLabel, batteryLabel;
     private final float[] fuelText = new float[3];
     private boolean wide;
@@ -93,29 +90,14 @@ final class Gauge80 extends GaugeView {
 
         int on = known ? Math.round(shown / MAX * BAND) : 0;
         for (int i = 0; i < on; i++) glow(c, band[i], bandColor(i));
-        int s = Math.round(shown);
-        speed.draw(c, this, new int[] {
-            !known ? DASH : s < 100 ? BLANK : DIGITS[s / 100 % 10],
-            !known ? DASH : s < 10 ? BLANK : DIGITS[s / 10 % 10],
-            !known ? DASH : DIGITS[s % 10],
-        }, AMBER);
-        time.draw(c, this, clockDigits(), AMBER);
+        light(c, speed, Figures.number(known ? Math.round(shown) : -1, 3), AMBER);
+        light(c, time, Figures.clock(timeText), AMBER);
 
         if (wide) {
-            if (Float.isNaN(coolant)) {
-                heat.draw(c, this, new int[] {BLANK, DASH, DASH}, AMBER);
-            } else {
-                int t = Math.max(0, Math.min(199, Math.round(coolant)));
-                heat.draw(c, this, new int[] {t < 100 ? BLANK : DIGITS[1], t < 10 ? BLANK : DIGITS[t / 10 % 10], DIGITS[t % 10]},
-                        coolant >= 115 ? RED : AMBER);
-            }
-            if (battery <= 0) {
-                volts.draw(c, this, new int[] {DASH, DASH, DASH}, AMBER);
-            } else {
-                int v = Math.max(0, Math.min(199, Math.round(battery * 10)));
-                volts.draw(c, this, new int[] {v < 100 ? BLANK : DIGITS[v / 100], DIGITS[v / 10 % 10], DIGITS[v % 10]},
-                        battery < 11.5f ? RED : AMBER);
-            }
+            int t = Float.isNaN(coolant) ? -1 : Math.max(0, Math.min(199, Math.round(coolant)));
+            light(c, heat, Figures.number(t, 3), coolant >= 115 ? RED : AMBER);
+            int v = battery <= 0 ? -1 : Math.min(199, Math.round(battery * 10));
+            light(c, volts, Figures.number(v, 3), battery > 0 && battery < 11.5f ? RED : AMBER);
             if (fuelShare >= 0) {
                 int n = Math.round(fuelShare * STRIPES);
                 int color = fuelShare < 0.1f ? RED : fuelShare < 0.2f ? AMBER : GREEN;
@@ -136,15 +118,15 @@ final class Gauge80 extends GaugeView {
         if (wide) sheen(c, infoBox);
     }
 
-    /** The time's figures from the text the clock shows (24 or 12 hours), right aligned. */
-    private int[] clockDigits() {
-        int[] out = {BLANK, BLANK, BLANK, BLANK};
-        int k = 3;
-        for (int i = timeText.length() - 1; i >= 0 && k >= 0; i--) {
-            int d = Character.digit(timeText.charAt(i), 10);
-            if (d >= 0) out[k--] = DIGITS[d];
-        }
-        return out;
+    private void light(Canvas c, Figures f, int[] masks, int color) {
+        lit.setColor(color);
+        lit.setShadowLayer(f.h * 0.08f, 0, 0, color);
+        f.draw(c, masks, lit);
+    }
+
+    private void unlit(Canvas c, Figures f, int color) {
+        dim.setColor(ghostColor(color));
+        f.ghost(c, dim);
     }
 
     private int bandColor(int i) {
@@ -228,23 +210,23 @@ final class Gauge80 extends GaugeView {
         caption.setTextAlign(Paint.Align.RIGHT);
         c.drawText(unit, in.right, in.bottom, caption);
         float baseline = in.bottom - caption.getTextSize() * 1.4f;
-        float fh = Math.min(ih * 0.34f, iw * 0.46f / Figures.span(3, false));
+        float fh = Math.min(ih * 0.34f, iw * 0.46f / Figures.span(3, false, 0));
         while (fh > ih * 0.12f) {
-            float left = in.right - fh * Figures.span(3, false), top = baseline - fh;
+            float left = in.right - fh * Figures.span(3, false, 0), top = baseline - fh;
             // Where the band's inner edge is at the figures' top line.
             float e = Math.min(1f, (by - top) / (ay - thick));
             float edge = bx - (ax - thick) * (float) Math.sqrt(1 - e * e);
             if (left > edge + iw * 0.05f) break;
             fh *= 0.95f;
         }
-        speed.layout(in.right - fh * Figures.span(3, false), baseline, fh);
-        speed.ghost(c, this, AMBER);
+        speed.layout(in.right - fh * Figures.span(3, false, 0), baseline, fh);
+        unlit(c, speed, AMBER);
 
         // On its own, the screen keeps the time in its upper left, where the band leaves room.
         if (!wide) {
             float th = ih * 0.13f;
             time.layout(in.left, in.top + th, th);
-            time.ghost(c, this, AMBER);
+            unlit(c, time, AMBER);
         }
     }
 
@@ -288,9 +270,9 @@ final class Gauge80 extends GaugeView {
         float dateSize = ih * 0.075f;
         dateX = in.left;
         dateY = in.top + rowsH + ih * 0.08f + dateSize * 0.8f;
-        float fh = Math.min(in.bottom - dateY - ih * 0.06f, iw / Figures.span(4, true));
+        float fh = Math.min(in.bottom - dateY - ih * 0.06f, iw / Figures.span(4, true, 0));
         time.layout(in.left, in.bottom, fh);
-        time.ghost(c, this, AMBER);
+        unlit(c, time, AMBER);
     }
 
     /** An amber-framed box: its name at the left, the figures at the right, the unit small beside them. */
@@ -307,7 +289,7 @@ final class Gauge80 extends GaugeView {
         float uw = caption.measureText(unitText);
         c.drawText(unitText, r.right - pad - uw, r.top + pad + caption.getTextSize() * 0.75f, caption);
         // The figures as tall as the box allows, unless that leaves the name too little room.
-        float span = Figures.span(3, point), nameSize = r.height() * 0.24f;
+        float span = Figures.span(3, point, 0), nameSize = r.height() * 0.24f;
         caption.setTextSize(nameSize);
         float nameW = caption.measureText(name), minName = nameW * 0.6f;
         float fh = Math.min(r.height() - 2 * pad, (r.width() - 3 * pad - sep - uw - minName) / span);
@@ -315,7 +297,7 @@ final class Gauge80 extends GaugeView {
         if (nameW > room) caption.setTextSize(nameSize * room / nameW);
         c.drawText(name, r.left + pad, r.bottom - pad, caption);
         f.layout(r.right - pad - uw - sep - fh * span, r.bottom - pad, fh);
-        f.ghost(c, this, AMBER);
+        unlit(c, f, AMBER);
     }
 
     private void ghost(Canvas c, Path p, int color) {
@@ -325,106 +307,5 @@ final class Gauge80 extends GaugeView {
 
     private static int ghostColor(int color) {
         return color & 0x00FFFFFF | 0x24000000;
-    }
-
-    /**
-     * A row of seven-segment figures: their shapes for one height, where each stands, and the colon or decimal
-     * point after one of them.
-     */
-    private static final class Figures {
-        private static final float ASPECT = 0.54f, SPACING = 0.22f, SEPARATOR = 0.42f;
-        final float[] xs;
-        final Path[] segments = new Path[7];
-        final int after;
-        float y, h;
-
-        /** n figures; after: the index of the one the separator follows, or -1. */
-        Figures(int n, int after) {
-            xs = new float[n];
-            this.after = after;
-        }
-
-        /** The width of n figures, with a separator or not, for a height of one. */
-        static float span(int n, boolean separator) {
-            return ASPECT * (n + (n - 1) * SPACING + (separator ? SEPARATOR : 0));
-        }
-
-        void layout(float left, float baseline, float height) {
-            h = height;
-            y = baseline;
-            float w = h * ASPECT, gap = w * SPACING, x = left;
-            for (int k = 0; k < xs.length; k++) {
-                xs[k] = x;
-                x += w + gap;
-                if (k == after) x += w * SEPARATOR;
-            }
-            // Each segment runs between the middles of the ones it meets, so the figure fills h by w exactly.
-            float t = w * 0.21f, top = -h + t / 2, mid = -h / 2, bottom = -t / 2, l = t / 2, r = w - t / 2;
-            segments[0] = horizontal(l, r, top, t);
-            segments[1] = vertical(r, top, mid, t);
-            segments[2] = vertical(r, mid, bottom, t);
-            segments[3] = horizontal(l, r, bottom, t);
-            segments[4] = vertical(l, mid, bottom, t);
-            segments[5] = vertical(l, top, mid, t);
-            segments[6] = horizontal(l, r, mid, t);
-        }
-
-        void ghost(Canvas c, Gauge80 g, int color) {
-            int[] all = new int[xs.length];
-            java.util.Arrays.fill(all, 0x7F);
-            g.dim.setColor(ghostColor(color));
-            paint(c, all, g.dim, true);
-        }
-
-        void draw(Canvas c, Gauge80 g, int[] masks, int color) {
-            g.lit.setColor(color);
-            g.lit.setShadowLayer(h * 0.08f, 0, 0, color);
-            paint(c, masks, g.lit, false);
-        }
-
-        private void paint(Canvas c, int[] masks, Paint p, boolean separator) {
-            float w = h * ASPECT;
-            for (int k = 0; k < xs.length; k++) {
-                c.save();
-                c.translate(xs[k], y);
-                for (int s = 0; s < 7; s++) if ((masks[k] >> s & 1) == 1) c.drawPath(segments[s], p);
-                c.restore();
-            }
-            // The separator is always lit once the figures are: the colon of a clock, the point of a voltmeter.
-            if (after < 0 || !separator && (masks[after + 1] == BLANK || masks[after + 1] == DASH)) return;
-            float x = xs[after] + w + w * (SPACING + SEPARATOR) / 2, dot = w * 0.21f;
-            if (xs.length == 4) {
-                c.drawRect(x - dot / 2, y - h * 0.72f - dot / 2, x + dot / 2, y - h * 0.72f + dot / 2, p);
-                c.drawRect(x - dot / 2, y - h * 0.28f - dot / 2, x + dot / 2, y - h * 0.28f + dot / 2, p);
-            } else {
-                c.drawRect(x - dot / 2, y - dot, x + dot / 2, y, p);
-            }
-        }
-
-        private static Path horizontal(float x0, float x1, float y, float t) {
-            float g = t * 0.3f;
-            Path p = new Path();
-            p.moveTo(x0 + g, y);
-            p.lineTo(x0 + g + t / 2, y - t / 2);
-            p.lineTo(x1 - g - t / 2, y - t / 2);
-            p.lineTo(x1 - g, y);
-            p.lineTo(x1 - g - t / 2, y + t / 2);
-            p.lineTo(x0 + g + t / 2, y + t / 2);
-            p.close();
-            return p;
-        }
-
-        private static Path vertical(float x, float y0, float y1, float t) {
-            float g = t * 0.3f;
-            Path p = new Path();
-            p.moveTo(x, y0 + g);
-            p.lineTo(x + t / 2, y0 + g + t / 2);
-            p.lineTo(x + t / 2, y1 - g - t / 2);
-            p.lineTo(x, y1 - g);
-            p.lineTo(x - t / 2, y1 - g - t / 2);
-            p.lineTo(x - t / 2, y0 + g + t / 2);
-            p.close();
-            return p;
-        }
     }
 }
