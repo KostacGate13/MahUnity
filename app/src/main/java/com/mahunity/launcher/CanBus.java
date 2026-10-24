@@ -57,6 +57,8 @@ final class CanBus {
     int state = MISSING;
     int packets;
     int speed = -1;
+    /** Engine speed in rpm: Car Info fills it in from its second, common source (the Corsa's decoder leaves it out). */
+    int rpm = -1;
     int doors = -1;
     String outside;
     /** Litres in the tank: from car info on decoders that fill it in, else from Car Info's log. */
@@ -226,6 +228,10 @@ final class CanBus {
                 if (p.length < OFFSET + 2) return;
                 int s = u16(p, OFFSET);
                 speed = s == 0xFFFF ? -1 : s;
+                if (p.length >= OFFSET + 4) {
+                    int r = u16(p, OFFSET + 2);
+                    rpm = r == 0xFFFF ? -1 : r;
+                }
                 // Zero on decoders that leave it out (GM's Raise among them); the log's value stands then.
                 if (p.length > OFFSET + 14) {
                     int f = p[OFFSET + 14] & 0xFF;
@@ -247,14 +253,20 @@ final class CanBus {
     }
 
     /**
-     * A Raise frame of type 4A from Car Info's log, decoded as GM's Raise decoder in Car Info does: payload 04 is
-     * coolant (+40), fuel in whole litres (third byte) and battery voltage (bytes four and five); 01 is the unit
-     * the car is set to (1: psi) and the tyre pressures in steps of 4 kPa, front left, front right, rear left,
-     * rear right.
+     * A Raise frame from Car Info's log, decoded as GM's Raise decoder in Car Info does. Type 4A, payload 04: coolant
+     * (+40), fuel in whole litres (third byte) and battery voltage (bytes four and five); payload 01: the unit the
+     * car is set to (1: psi) and the tyre pressures in steps of 4 kPa, front left, front right, rear left, rear
+     * right. Type 03, the climate: the outside temperature in its sixth byte, signed, in °C.
      */
     void decodeCarState(byte[] f) {
         if (f.length < OFFSET + 7 || !log.gmRaise()) return;
-        if (f[OFFSET] == 4) {
+        if (f[1] == NwdLog.CLIMATE) {
+            // Car Info's own bounds; -40 is the box's "not known".
+            int t = f[OFFSET + 5];
+            String s = t <= -40 || t > 87 ? null : t + "°C";
+            if (s == null || s.equals(outside)) return;
+            outside = s;
+        } else if (f[OFFSET] == 4) {
             coolant = (f[OFFSET + 1] & 0xFF) - 40;
             int litres = f[OFFSET + 3] & 0xFF;
             fuel = litres == 0xFF ? -1 : litres;

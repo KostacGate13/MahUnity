@@ -18,9 +18,10 @@ import java.util.Locale;
 /**
  * The 60s cluster, after a '66 Charger at night: electroluminescent dials, turquoise numerals and ticks glowing on
  * black, thin red needles, the numerals on a sloped outer ring, each dial in a turned-metal bezel like a Mustang's
- * or a Bel Air's. With room for three: a split gauge (coolant above, fuel below, where the Charger has its
- * alternator and fuel), the speedometer, its odometer window reading the speed, and a clock. With room for one:
- * the speedometer, its window reading the time.
+ * or a Bel Air's. With room for three, as the Charger's own: a split gauge (coolant above, fuel below, where the
+ * Charger has its alternator and fuel), the speedometer, its odometer window reading the speed, and the
+ * tachometer, red from 6000 rpm, a window in it reading the time. With room for one: the speedometer, its window
+ * reading the time.
  *
  * Everything that does not move is drawn once into a bitmap; each frame adds the needles and the window's figures.
  */
@@ -40,17 +41,18 @@ final class Gauge60 extends GaugeView {
     private final Paint glare = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint drumLine = new Paint();
     private final Path pointer = new Path();
-    private final RectF drumBox = new RectF();
-    private final String unit, coolantLabel, fuelLabel;
+    private final RectF drumBox = new RectF(), clockBox = new RectF();
+    private final String unit, revsLabel, coolantLabel, fuelLabel;
     private boolean trio;
-    /** The speedometer's radius, the other two's; their centres. */
-    private float big, small, speedX, splitX, clockX, cy;
+    /** The radii of the speedometer, the split gauge and the tachometer; their centres. */
+    private float big, small, tach, speedX, splitX, tachX, cy;
     private final Shader[] hubs = new Shader[3], glares = new Shader[3];
     private Bitmap dial;
 
     Gauge60(Context context) {
         super(context);
         unit = Text.upper(context.getString(R.string.kmh));
+        revsLabel = Text.upper(context.getString(R.string.rpm_thousands));
         coolantLabel = Text.upper(context.getString(R.string.veh_coolant));
         fuelLabel = Text.upper(context.getString(R.string.veh_fuel));
         Typeface condensed = Typeface.create("sans-serif-condensed", Typeface.BOLD);
@@ -72,19 +74,22 @@ final class Gauge60 extends GaugeView {
 
     @Override protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         if (w <= 0 || h <= 0) return;
-        // Three in a row: the speedometer, and either side of it a dial two thirds its size.
+        // Three in a row, the speedometer largest, the tachometer nearly as large, the split gauge smaller.
         trio = w >= h * 1.75f;
         cy = h / 2f;
         speedX = w / 2f;
         if (trio) {
-            big = Math.min(h * 0.47f, w / 4.8f);
-            small = big * 0.66f;
-            splitX = speedX - big * 1.05f - small;
-            clockX = speedX + big * 1.05f + small;
+            big = Math.min(h * 0.47f, w / 5.05f);
+            small = big * 0.6f;
+            tach = big * 0.85f;
+            float gap = big * 0.05f, left = (w - (2 * small + 2 * big + 2 * tach + 2 * gap)) / 2;
+            splitX = left + small;
+            speedX = splitX + small + gap + big;
+            tachX = speedX + big + gap + tach;
         } else {
             big = Math.min(w, h) * 0.47f;
         }
-        float[] xs = {speedX, splitX, clockX}, rs = {big, small, small};
+        float[] xs = {speedX, splitX, tachX}, rs = {big, small, tach};
         for (int i = 0; i < (trio ? 3 : 1); i++) {
             float x = xs[i], r = rs[i];
             // A dark metal cone, lit from the upper left.
@@ -92,8 +97,9 @@ final class Gauge60 extends GaugeView {
                     new float[] {0f, 0.55f, 1f}, Shader.TileMode.CLAMP);
             glares[i] = new LinearGradient(0, cy - r, 0, cy, 0x1CFFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP);
         }
-        float dw = big * 0.46f, dh = big * 0.17f;
-        drumBox.set(speedX - dw / 2, cy + big * 0.52f - dh / 2, speedX + dw / 2, cy + big * 0.52f + dh / 2);
+        window(drumBox, speedX, big);
+        window(clockBox, tachX, tach);
+        float dh = drumBox.height();
         drumText.setTextSize(dh * 0.8f);
         drumText.setShadowLayer(dh * 0.25f, 0, 0, GLOW_HALO);
         drumLine.setStrokeWidth(Math.max(1f, big * 0.008f));
@@ -106,23 +112,24 @@ final class Gauge60 extends GaugeView {
         if (trio) {
             pod(d, splitX, small);
             split(d);
-            pod(d, clockX, small);
-            clockFace(d);
+            pod(d, tachX, tach);
+            tachometer(d);
         }
+    }
+
+    /** The odometer window in the gap at the foot of a dial's scale. */
+    private void window(RectF box, float x, float r) {
+        float dw = r * 0.46f, dh = r * 0.17f;
+        box.set(x - dw / 2, cy + r * 0.52f - dh / 2, x + dw / 2, cy + r * 0.52f + dh / 2);
     }
 
     @Override protected void onDraw(Canvas c) {
         if (dial == null) return;
         c.drawBitmap(dial, 0, 0, null);
 
-        // The odometer window: the speed beside the clock, the time on its own.
-        String s = trio ? (known ? String.format(Locale.ROOT, "%03d", Math.round(shown)) : "---") : timeText;
-        int n = s.length();
-        float cw = drumBox.width() / n;
-        for (int k = 0; k < n; k++) {
-            if (k > 0) c.drawLine(drumBox.left + cw * k, drumBox.top, drumBox.left + cw * k, drumBox.bottom, drumLine);
-            c.drawText(s, k, k + 1, drumBox.left + cw * (k + 0.5f), drumBox.centerY() + drumText.getTextSize() * 0.36f, drumText);
-        }
+        // The odometer window: the speed beside the tachometer, which keeps the time; the time on its own.
+        drum(c, drumBox, trio ? (known ? String.format(Locale.ROOT, "%03d", Math.round(shown)) : "---") : timeText);
+        if (trio) drum(c, clockBox, timeText);
 
         pointer(c, speedX, START + SWEEP * shown / MAX, big * 0.08f, big * 0.62f, big * 0.024f);
         cap(c, 0, speedX, big * 0.12f);
@@ -131,16 +138,25 @@ final class Gauge60 extends GaugeView {
             pointer(c, splitX, COOL_FROM + ARC * heat, small * 0.1f, small * 0.58f, small * 0.032f);
             pointer(c, splitX, FUEL_FROM - ARC * Math.max(0f, fuelShare), small * 0.1f, small * 0.58f, small * 0.032f);
             cap(c, 1, splitX, small * 0.14f);
-            float hourAngle = (hour % 12 + minute / 60f) * 30f - 90f, minuteAngle = minute * 6f - 90f;
-            pointer(c, clockX, hourAngle, small * 0.1f, small * 0.4f, small * 0.05f);
-            pointer(c, clockX, minuteAngle, small * 0.12f, small * 0.6f, small * 0.034f);
-            cap(c, 2, clockX, small * 0.12f);
+            pointer(c, tachX, START + SWEEP * revs / RPM_MAX, tach * 0.08f, tach * 0.62f, tach * 0.026f);
+            cap(c, 2, tachX, tach * 0.12f);
         }
         // The curve of light on each glass, over the needles.
         glass(c, 0, speedX, big);
         if (trio) {
             glass(c, 1, splitX, small);
-            glass(c, 2, clockX, small);
+            glass(c, 2, tachX, tach);
+        }
+    }
+
+    /** Figures on a drum: one wheel each, a black line between. */
+    private void drum(Canvas c, RectF box, String s) {
+        int n = s.length();
+        float cw = box.width() / n;
+        drumText.setTextSize(box.height() * 0.8f);
+        for (int k = 0; k < n; k++) {
+            if (k > 0) c.drawLine(box.left + cw * k, box.top, box.left + cw * k, box.bottom, drumLine);
+            c.drawText(s, k, k + 1, box.left + cw * (k + 0.5f), box.centerY() + drumText.getTextSize() * 0.36f, drumText);
         }
     }
 
@@ -200,17 +216,20 @@ final class Gauge60 extends GaugeView {
         label.setShadowLayer(label.getTextSize() * 0.35f, 0, 0, GLOW_HALO);
         label.setTextAlign(Paint.Align.CENTER);
         c.drawText(unit, x, cy + r * 0.3f, label);
+        windowGlass(c, drumBox, r);
+    }
 
-        // The odometer window, faintly lit from behind.
+    /** An odometer window, faintly lit from behind. */
+    private void windowGlass(Canvas c, RectF box, float r) {
         Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
-        p.setShader(new LinearGradient(0, drumBox.top, 0, drumBox.bottom, new int[] {0xFF020807, 0xFF0B2624, 0xFF020807},
+        p.setShader(new LinearGradient(0, box.top, 0, box.bottom, new int[] {0xFF020807, 0xFF0B2624, 0xFF020807},
                 null, Shader.TileMode.CLAMP));
-        c.drawRect(drumBox, p);
+        c.drawRect(box, p);
         p.setShader(null);
         p.setStyle(Paint.Style.STROKE);
         p.setStrokeWidth(Math.max(1f, r * 0.01f));
         p.setColor(0xFF2B2A28);
-        c.drawRect(drumBox, p);
+        c.drawRect(box, p);
     }
 
     /** Coolant over the top, fuel along the bottom, a needle each from the middle; names on the ring. */
@@ -238,23 +257,44 @@ final class Gauge60 extends GaugeView {
         curved(c, x, fuelLabel, r * 0.84f, false);
     }
 
-    private void clockFace(Canvas c) {
-        float x = clockX, r = small;
-        glow.setShadowLayer(r * 0.04f, 0, 0, GLOW_HALO);
-        for (int m = 0; m < 60; m++) {
-            boolean hourMark = m % 5 == 0;
-            if (!hourMark && r < 50) continue;
-            glow.setStrokeWidth(Math.max(1f, r * (hourMark ? 0.03f : 0.014f)));
-            radial(c, x, m * 6 - 90, r * (hourMark ? 0.47f : 0.55f), r * 0.62f);
+    /** 0 to 7 thousand rpm on the speedometer's sweep, the last thousand in red, as a redline. */
+    private void tachometer(Canvas c) {
+        float x = tachX, r = tach;
+        numbers.setTextSize(r * 0.16f);
+        float ring = r * 0.79f;
+        for (int k = 0; k <= RPM_MAX / 1000; k++) {
+            boolean red = k * 1000 >= REDLINE;
+            numbers.setColor(red ? NEEDLE : GLOW);
+            numbers.setShadowLayer(numbers.getTextSize() * 0.35f, 0, 0, red ? NEEDLE_HALO : GLOW_HALO);
+            c.save();
+            c.rotate(START + SWEEP * k * 1000 / RPM_MAX + 90f, x, cy);
+            c.drawText(String.valueOf(k), x, cy - ring + numbers.getTextSize() * 0.36f, numbers);
+            c.restore();
         }
-        numbers.setTextSize(r * 0.17f);
-        numbers.setShadowLayer(numbers.getTextSize() * 0.35f, 0, 0, GLOW_HALO);
-        float ring = r * 0.785f;
-        for (int k = 1; k <= 12; k++) {
-            double a = Math.toRadians(k * 30 - 90);
-            c.drawText(String.valueOf(k), x + (float) Math.cos(a) * ring,
-                    cy + (float) Math.sin(a) * ring + numbers.getTextSize() * 0.36f, numbers);
+        numbers.setColor(GLOW);
+        // Ticks every 250 rpm, long ones every thousand, on a circle open at the bottom like the speedometer's.
+        for (int v = 0; v <= RPM_MAX; v += 250) {
+            boolean major = v % 1000 == 0, half = v % 500 == 0, red = v >= REDLINE;
+            glow.setColor(red ? NEEDLE : GLOW);
+            glow.setShadowLayer(r * 0.03f, 0, 0, red ? NEEDLE_HALO : GLOW_HALO);
+            glow.setStrokeWidth(Math.max(1f, r * (major ? 0.024f : 0.014f)));
+            radial(c, x, START + SWEEP * v / RPM_MAX, r * (major ? 0.4f : half ? 0.47f : 0.53f), r * 0.62f);
         }
+        glow.setColor(GLOW);
+        glow.setShadowLayer(r * 0.03f, 0, 0, GLOW_HALO);
+        glow.setStrokeWidth(Math.max(1f, r * 0.012f));
+        float redFrom = SWEEP * REDLINE / RPM_MAX;
+        c.drawArc(x - r * 0.4f, cy - r * 0.4f, x + r * 0.4f, cy + r * 0.4f, START, redFrom, false, glow);
+        glow.setColor(NEEDLE);
+        glow.setShadowLayer(r * 0.03f, 0, 0, NEEDLE_HALO);
+        glow.setStrokeWidth(Math.max(2f, r * 0.05f));
+        c.drawArc(x - r * 0.65f, cy - r * 0.65f, x + r * 0.65f, cy + r * 0.65f, START + redFrom, SWEEP - redFrom, false, glow);
+        glow.setColor(GLOW);
+        label.setTextSize(r * 0.08f);
+        label.setShadowLayer(label.getTextSize() * 0.35f, 0, 0, GLOW_HALO);
+        label.setTextAlign(Paint.Align.CENTER);
+        c.drawText(revsLabel, x, cy + r * 0.3f, label);
+        windowGlass(c, clockBox, r);
     }
 
     private void radial(Canvas c, float x, float degrees, float from, float to) {

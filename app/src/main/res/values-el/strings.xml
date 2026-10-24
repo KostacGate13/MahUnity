@@ -45,6 +45,9 @@
     <string name="set_home">Αρχική οθόνη</string>
     <string name="home_is_default">Προεπιλογή ✓</string>
     <string name="home_make_default">Ορισμός ως προεπιλογή</string>
+    <string name="home_nwd_help">Η μονάδα ανοίγει τον δικό της launcher, ό,τι κι αν έχει οριστεί στο Android. Ανοίξτε τις Ρυθμίσεις αυτοκινήτου, πηγαίνετε στη σελίδα με την προεπιλεγμένη ένταση και τον χρόνο σβησίματος οθόνης, και στο «Default launcher» διαλέξτε Cockpit.</string>
+    <string name="home_nwd_open">Ρυθμίσεις αυτοκινήτου</string>
+    <string name="home_android">Android</string>
     <string name="set_ambient">Χρώμα έμφασης</string>
     <string-array name="ambient_names">
         <item>Ασημί</item>
@@ -81,7 +84,10 @@
     <string name="style_photo">Φωτογραφία</string>
     <string name="style_hologram">Ολόγραμμα</string>
     <string name="unknown">—</string>
-    <string name="veh_outside">Θερμοκρασία</string>
+    <string name="veh_rpm">Στροφές</string>
+    <string name="rpm">rpm</string>
+    <string name="rpm_thousands">×1000 rpm</string>
+    <string name="rpm_hundreds">rpm ×100</string>
     <string name="can_missing">CANBus: η μονάδα δεν έχει την υπηρεσία CAN της NWD</string>
     <string name="can_waiting">CANBus: συνδέθηκε, αναμονή για το αυτοκίνητο</string>
     <string name="can_live">CANBus: συνδέθηκε · %1$d μηνύματα</string>
@@ -115,6 +121,12 @@
     <string name="trip_waiting">Ξεκινά όταν κινηθεί το αυτοκίνητο</string>
     <string name="trip_units">Από την αναχώρηση</string>
     <string name="set_car_data">Δεδομένα Car Info</string>
+    <string name="set_can_status">Κατάσταση CANBus</string>
+    <string name="set_nwd_doors">Παράθυρο πορτών NWD</string>
+    <string name="nwd_doors_shown">Εμφανίζεται</string>
+    <string name="nwd_doors_hidden">Κρυμμένο</string>
+    <string name="nwd_doors_help">Όταν ανοίγει μια πόρτα, το Car Info δείχνει δικό του παράθυρο με το αυτοκίνητο από πάνω, πάνω από το Cockpit. Το Cockpit γυρίζει ήδη το δικό του αυτοκίνητο προς την ανοιχτή πόρτα, οπότε το παράθυρο μπορεί να φύγει. Κλείνει μόνο με ADB, μία φορά, και μένει κλειστό (εκτός αν γίνει επαναφορά του Car Info):\n\nsettings put system %1$s 1\n\nΓια να ξαναεμφανιστεί: το ίδιο με 0.</string>
+    <string name="screen_off">Σβήσιμο οθόνης</string>
     <string name="car_data_live">Ενεργά</string>
     <string name="car_data_adb">Χρειάζεται ADB</string>
     <string name="car_data_waiting">Αναμονή για την Car Info</string>

@@ -14,4 +14,8 @@ adb shell pm grant "$PKG" android.permission.ACCESS_FINE_LOCATION || true       
 # Fuel, battery, coolant and tyres from NWD Car Info's log; canapp_debug keeps Car Info logging from boot.
 adb shell pm grant "$PKG" android.permission.READ_LOGS || true
 adb shell settings put system canapp_debug 1 || true
+# NWD units bring up their own launcher unless their car settings name another (Car Settings > Default launcher).
+adb shell setprop persist.nwd.launcher.default "$PKG" || true
+# Car Info's door window over the screen: Cockpit shows open doors on its own car.
+adb shell settings put system car_config_door_not_show 1 || true
 adb shell am start -a android.intent.action.MAIN -c android.intent.category.HOME

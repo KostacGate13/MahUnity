@@ -19,12 +19,15 @@ import android.view.ViewGroup;
 final class HomeLayout extends ViewGroup {
     final TopBar top;
     final ChromeButton gear;
+    /** The screen-off button left of the gear, on units that can turn their screen off; else null. */
+    final ChromeButton power;
     final Header header;
     /** The widgets picked in Settings: the clock or the speedometer-clock, and the media card or another. */
     final View upper, lower;
     final TileView[] tiles;
 
-    private final Rect topRect = new Rect(), gearRect = new Rect(), headerRect = new Rect(), clockRect = new Rect();
+    private final Rect topRect = new Rect(), gearRect = new Rect(), powerRect = new Rect(), headerRect = new Rect(),
+            clockRect = new Rect();
     private final Rect mediaRect = new Rect();
     private final Rect[] tileRects;
     private final Paint background = new Paint();
@@ -36,10 +39,12 @@ final class HomeLayout extends ViewGroup {
     private float dividerX = -1, dividerTop, dividerBottom, stripY, stripH;
     private int stripColor;
 
-    HomeLayout(Context context, TopBar top, ChromeButton gear, Header header, View upper, View lower, TileView[] tiles) {
+    HomeLayout(Context context, TopBar top, ChromeButton gear, ChromeButton power, Header header, View upper, View lower,
+               TileView[] tiles) {
         super(context);
         this.top = top;
         this.gear = gear;
+        this.power = power;
         this.header = header;
         this.upper = upper;
         this.lower = lower;
@@ -49,6 +54,7 @@ final class HomeLayout extends ViewGroup {
         setWillNotDraw(false);
         addView(top);
         addView(gear);
+        if (power != null) addView(power);
         addView(header);
         addView(upper);
         top.hideClock(upper instanceof ClockView);
@@ -61,6 +67,7 @@ final class HomeLayout extends ViewGroup {
         place(w, h);
         measure(top, topRect);
         measure(gear, gearRect);
+        if (power != null) measure(power, powerRect);
         measure(header, headerRect);
         measure(upper, clockRect);
         measure(lower, mediaRect);
@@ -83,7 +90,8 @@ final class HomeLayout extends ViewGroup {
         top.setInset(pad);
         int g = Math.round(barH * 0.62f);
         gearRect.set(w - pad - g, (barH - g) / 2, w - pad, (barH - g) / 2 + g);
-        top.showClock(w - gearRect.left + pad);
+        powerRect.set(gearRect.left - pad / 2 - g, gearRect.top, gearRect.left - pad / 2, gearRect.bottom);
+        top.showClock(w - (power != null ? powerRect.left : gearRect.left) + pad);
         headerRect.set(0, barH, w, barH + headerH);
         header.setInset(pad);
 
@@ -124,6 +132,7 @@ final class HomeLayout extends ViewGroup {
     @Override protected void onLayout(boolean changed, int l, int t, int r, int b) {
         layout(top, topRect);
         layout(gear, gearRect);
+        if (power != null) layout(power, powerRect);
         layout(header, headerRect);
         layout(upper, clockRect);
         layout(lower, mediaRect);

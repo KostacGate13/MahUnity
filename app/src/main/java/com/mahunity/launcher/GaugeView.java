@@ -12,21 +12,26 @@ import java.util.Locale;
 
 /**
  * Home's upper widget as a speedometer with the time (Settings > Upper widget): the 60s dial or the 80s digital
- * dash. This holds what they share: the clock, ticking once a minute while Home shows; the speed, eased towards
- * each new reading so a needle or a bar sweeps rather than jumps; and what the car reports through Car Info, for
- * the smaller gauges beside it.
+ * dash. This holds what they share: the clock, ticking once a minute while Home shows; the speed and the engine
+ * speed, eased towards each new reading so a needle or a bar sweeps rather than jumps; and what the car reports
+ * through Car Info, for the smaller gauges beside them.
  */
 abstract class GaugeView extends View {
     static final float MAX = 200f;
+    /** The tachometers' scale, in rpm; red from REDLINE. */
+    static final float RPM_MAX = 7000f, REDLINE = 6000f;
 
     /** The speed drawn now, in km/h, moving towards the last reading; below zero none is known. */
     protected float shown;
     protected boolean known;
+    /** The engine speed drawn now, in rpm, moving towards the last reading; revsKnown once Car Info sends one. */
+    protected float revs;
+    protected boolean revsKnown;
     protected int hour, minute;
     protected String timeText = "", dateText = "";
     /** Fuel in litres and as a share of the tank (below zero: unknown), coolant in °C (NaN: unknown), battery in volts (0: unknown). */
     protected float litres = -1, fuelShare = -1, coolant = Float.NaN, battery;
-    private ValueAnimator move;
+    private ValueAnimator move, spin;
     private boolean ticking;
 
     private final Runnable tick = new Runnable() {
@@ -72,6 +77,29 @@ abstract class GaugeView extends View {
             }
         });
         move.start();
+    }
+
+    /** rpm; below zero: none known, the needle rests and the figures show a dash. */
+    void setRpm(float rpm) {
+        revsKnown = rpm >= 0;
+        float target = Math.max(0f, Math.min(RPM_MAX, rpm));
+        if (spin != null) spin.cancel();
+        if (!isLaidOut()) {
+            revs = target;
+            invalidate();
+            return;
+        }
+        // Quicker than the speed: the engine changes faster than the car.
+        spin = ValueAnimator.ofFloat(revs, target);
+        spin.setDuration(250);
+        spin.setInterpolator(new DecelerateInterpolator());
+        spin.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+            @Override public void onAnimationUpdate(ValueAnimator a) {
+                revs = (Float) a.getAnimatedValue();
+                invalidate();
+            }
+        });
+        spin.start();
     }
 
     /** What Car Info decoded; capacity is the tank size from Settings. */

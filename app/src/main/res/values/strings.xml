@@ -47,6 +47,9 @@
     <string name="set_home">Home screen</string>
     <string name="home_is_default">Default ✓</string>
     <string name="home_make_default">Make default</string>
+    <string name="home_nwd_help">This unit opens its own launcher whatever Android\'s default is. Open its Car Settings, go to the page with the default volume and the screen-off time, and under Default launcher choose Cockpit.</string>
+    <string name="home_nwd_open">Car Settings</string>
+    <string name="home_android">Android</string>
     <string name="set_ambient">Accent colour</string>
     <string-array name="ambient_names">
         <item>Silver</item>
@@ -83,7 +86,10 @@
     <string name="style_photo">Photo</string>
     <string name="style_hologram">Hologram</string>
     <string name="unknown">—</string>
-    <string name="veh_outside">Temperature</string>
+    <string name="veh_rpm">Engine speed</string>
+    <string name="rpm">rpm</string>
+    <string name="rpm_thousands">×1000 rpm</string>
+    <string name="rpm_hundreds">rpm ×100</string>
     <string name="can_missing">CANBus: this unit has no NWD CAN service</string>
     <string name="can_waiting">CANBus: connected, waiting for the car</string>
     <string name="can_live">CANBus: connected · %1$d messages</string>
@@ -117,6 +123,12 @@
     <string name="trip_waiting">Starts when the car moves</string>
     <string name="trip_units">Since setting off</string>
     <string name="set_car_data">Car Info data</string>
+    <string name="set_can_status">CANBus status</string>
+    <string name="set_nwd_doors">NWD door window</string>
+    <string name="nwd_doors_shown">Shown</string>
+    <string name="nwd_doors_hidden">Hidden</string>
+    <string name="nwd_doors_help">When a door opens, Car Info shows its own window with the car from above, over Cockpit. Cockpit already turns its own car to the open door, so that window can go. Only ADB can switch it off, once, and it stays off (as long as Car Info is not reset):\n\nsettings put system %1$s 1\n\nTo bring it back: the same with 0.</string>
+    <string name="screen_off">Screen off</string>
     <string name="car_data_live">On</string>
     <string name="car_data_adb">Needs ADB</string>
     <string name="car_data_waiting">Waiting for Car Info</string>

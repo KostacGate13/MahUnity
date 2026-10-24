@@ -12,9 +12,9 @@ import android.view.View;
 import java.util.Locale;
 
 /**
- * The Vehicle tab: four cards in a grid (temperature outside, battery, coolant, fuel with its share of the tank)
- * over a card with the tyre pressures around a plan of the car. A value the car has not sent is a dash; the
- * line at the bottom says why, or how the CANBus link is doing.
+ * The Vehicle tab: four cards in a grid (engine speed, battery, coolant, fuel with its share of the tank) over a
+ * card with the tyre pressures around a plan of the car. A value the car has not sent is a dash; the line at the
+ * bottom says why, or, when Settings asks for it, how the CANBus link is doing.
  */
 final class VehicleView extends View {
     private static final int CARDS = 5, TYRES = 4;
@@ -44,7 +44,7 @@ final class VehicleView extends View {
         super(context);
         dash = context.getString(R.string.unknown);
         labels = new String[] {
-            Text.upper(context.getString(R.string.veh_outside)), Text.upper(context.getString(R.string.veh_battery)),
+            Text.upper(context.getString(R.string.veh_rpm)), Text.upper(context.getString(R.string.veh_battery)),
             Text.upper(context.getString(R.string.veh_coolant)), Text.upper(context.getString(R.string.veh_fuel)),
             Text.upper(context.getString(R.string.veh_tyres)),
         };
@@ -68,12 +68,12 @@ final class VehicleView extends View {
 
     /**
      * What the car reports; capacity is the tank size from Settings, for the fuel share; hint, if not null, says
-     * why fuel, battery, coolant and tyres are missing.
+     * why fuel, battery, coolant and tyres are missing; status: whether to show the CANBus link's state otherwise.
      */
-    void setCar(CanBus can, float capacity, String hint) {
+    void setCar(CanBus can, float capacity, String hint, boolean status) {
         Context c = getContext();
         Locale l = Locale.getDefault();
-        values[0] = can.outside != null ? can.outside : dash;
+        values[0] = can.rpm >= 0 ? can.rpm + " " + c.getString(R.string.rpm) : dash;
         values[1] = can.battery > 0 ? String.format(l, "%.1f V", can.battery) : dash;
         values[2] = Float.isNaN(can.coolant) ? dash : Math.round(can.coolant) + "°C";
         if (can.fuel >= 0) {
@@ -91,6 +91,7 @@ final class VehicleView extends View {
         }
         unitText = can.tyresPsi ? "psi" : "kPa";
         noteText = hint != null ? hint
+                : !status ? ""
                 : can.state == CanBus.MISSING ? c.getString(R.string.can_missing)
                 : can.packets == 0 ? c.getString(R.string.can_waiting)
                 : c.getString(R.string.can_live, can.packets);

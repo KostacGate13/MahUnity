@@ -39,6 +39,7 @@
         <package android:name="com.nwd.bt.music" />
         <package android:name="com.nwd.android.music.ui" />
         <package android:name="com.zjinnova.zlink" />
+        <package android:name="com.android.car.setting" />
     </queries>
 
     <application

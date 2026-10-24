@@ -15,16 +15,17 @@ import android.text.TextPaint;
  * The 80s digital dash of a Japanese coupé, after its vacuum-fluorescent display: everything glows green on black
  * glass. The speed in large slanted figures, km/h beside them, a speed-alarm bar under them that lights orange
  * from 130 km/h; a line of dots that climbs from the lower left with the speed, green, then yellow, orange and
- * red. At the left, framed bar meters for the battery and the coolant, the time and the date under them; at the
- * right, the fuel meter with the litres, and a pump lamp that lights red when the tank runs low. Unlit, every
- * segment shows faintly. On a narrow widget: the speed, the dots and the time.
+ * red; the tachometer, a column of bars beside them marked 1 to 7 thousand rpm, red from 6000. At the left,
+ * framed bar meters for the battery and the coolant, the time and the date under them; at the right, the fuel
+ * meter with the litres, and a pump lamp that lights red when the tank runs low. Unlit, every segment shows
+ * faintly. On a narrow widget: the speed, the dots, the tachometer and the time.
  *
  * Everything that does not change is drawn once into a bitmap, the unlit segments with it; each frame lights some.
  */
 final class GaugeVfd extends GaugeView {
     private static final int GREEN = 0xFF4CFF72, YELLOW = 0xFFF2F046, ORANGE = 0xFFFF8A2A, RED = 0xFFFF3B2F,
             CYAN = 0xFF3AE2FF, BLUE = 0xFF3F7DFF;
-    private static final int DOTS = 40, SEGMENTS = 10;
+    private static final int DOTS = 40, SEGMENTS = 10, REVS = 28;
     private static final float SLANT = -0.14f, ALARM = 130f;
     private static final float VOLTS_LOW = 8f, VOLTS_HIGH = 18f, COLD = 40f, HOT = 130f;
     /** Warnings: the battery below this, the coolant from this, the tank below this share. */
@@ -35,7 +36,7 @@ final class GaugeVfd extends GaugeView {
     private final TextPaint text = new TextPaint(Paint.ANTI_ALIAS_FLAG);
     private final RectF panel = new RectF(), alarmLeft = new RectF(), alarmRight = new RectF(), pump = new RectF();
     private final float[] dotX = new float[DOTS], dotY = new float[DOTS];
-    private final RectF[] voltsBar = bars(), heatBar = bars(), fuelBar = bars();
+    private final RectF[] voltsBar = bars(SEGMENTS), heatBar = bars(SEGMENTS), fuelBar = bars(SEGMENTS), revBars = bars(REVS);
     private final Figures speed = new Figures(3, -1, SLANT), time = new Figures(4, 1, SLANT);
     private final Path shape = new Path();
     private final String unit;
@@ -50,9 +51,9 @@ final class GaugeVfd extends GaugeView {
         text.setColor(GREEN);
     }
 
-    private static RectF[] bars() {
-        RectF[] r = new RectF[SEGMENTS];
-        for (int i = 0; i < SEGMENTS; i++) r[i] = new RectF();
+    private static RectF[] bars(int n) {
+        RectF[] r = new RectF[n];
+        for (int i = 0; i < n; i++) r[i] = new RectF();
         return r;
     }
 
@@ -133,18 +134,20 @@ final class GaugeVfd extends GaugeView {
             text.setTextAlign(Paint.Align.LEFT);
             c.drawText(unit, left + fw + pw * 0.015f, baseline - fh * 0.42f, text);
             dots(c, 0.25f, 0.94f, 0.6f, 0.93f, 0.735f, 0.66f);
+            revs(c, x(0.262f), x(0.29f), y(0.08f), y(0.62f), true);
         } else {
             float th = ph * 0.12f;
             time.layout(x(0.04f), y(0.04f) + th, th);
+            revs(c, x(0.05f), x(0.085f), y(0.22f), y(0.84f), false);
             text.setTextSize(ph * 0.08f);
             float uw = text.measureText(unit);
-            fh = Math.min(ph * 0.34f, (pw * 0.86f - uw) / Figures.span(3, false, SLANT));
+            fh = Math.min(ph * 0.34f, (pw * 0.76f - uw) / Figures.span(3, false, SLANT));
             float fw = fh * Figures.span(3, false, SLANT);
-            left = x(0.5f) - (fw + pw * 0.02f + uw) / 2;
+            left = x(0.58f) - (fw + pw * 0.02f + uw) / 2;
             baseline = y(0.6f);
             text.setTextAlign(Paint.Align.LEFT);
             c.drawText(unit, left + fw + pw * 0.02f, baseline - fh * 0.42f, text);
-            dots(c, 0.06f, 0.94f, 0.6f, 0.93f, 0.9f, 0.7f);
+            dots(c, 0.15f, 0.94f, 0.62f, 0.93f, 0.92f, 0.7f);
         }
         speed.layout(left, baseline, fh);
         unlit(c, speed, GREEN);
@@ -156,6 +159,43 @@ final class GaugeVfd extends GaugeView {
         dim.setColor(ghost(ORANGE));
         c.drawRect(alarmLeft, dim);
         c.drawRect(alarmRight, dim);
+    }
+
+    /**
+     * The tachometer: a column of bars between left and right, top and bottom, 0 rpm at the foot, marked every
+     * thousand on its left (marksLeft) or its right, red from 6000.
+     */
+    private void revs(Canvas c, float left, float right, float top, float bottom, boolean marksLeft) {
+        float step = (bottom - top) / REVS;
+        for (int i = 0; i < REVS; i++) {
+            float b = bottom - i * step;
+            revBars[i].set(left, b - step * 0.62f, right, b);
+            dim.setColor(ghost(revColor(i)));
+            c.drawRect(revBars[i], dim);
+        }
+        text.setTextSize(Math.min(step * 3.2f, (right - left) * 1.1f));
+        text.setTextAlign(marksLeft ? Paint.Align.RIGHT : Paint.Align.LEFT);
+        Paint tick = new Paint(lit);
+        tick.setStrokeWidth(Math.max(1f, step * 0.3f));
+        float dash = (right - left) * 0.3f;
+        for (int k = 1; k <= RPM_MAX / 1000; k++) {
+            float y = bottom - step * (k * 1000 / RPM_MAX * REVS) + step * 0.31f;
+            int color = k * 1000 >= REDLINE ? RED : GREEN;
+            text.setColor(color);
+            tick.setColor(color);
+            tick.setShadowLayer(step * 0.4f, 0, 0, color);
+            float x0 = marksLeft ? left - dash * 0.4f : right + dash * 0.4f, x1 = marksLeft ? x0 - dash : x0 + dash;
+            c.drawLine(x0, y, x1, y, tick);
+            c.drawText(String.valueOf(k), marksLeft ? x1 - dash * 0.5f : x1 + dash * 0.5f, y + text.getTextSize() * 0.36f, text);
+        }
+        text.setColor(GREEN);
+        text.setTextSize(Math.min(step * 2.2f, (right - left) * 0.8f));
+        text.setTextAlign(Paint.Align.CENTER);
+        c.drawText("rpm", (left + right) / 2, bottom + text.getTextSize() * 1.3f, text);
+    }
+
+    private int revColor(int i) {
+        return (i + 0.5f) / REVS * RPM_MAX >= REDLINE ? RED : GREEN;
     }
 
     /** The speed's dots along a curve from (x0, y0) bending through (x1, y1) up to (x2, y2), fractions of the panel. */
@@ -224,6 +264,11 @@ final class GaugeVfd extends GaugeView {
         speed.draw(c, Figures.number(known ? Math.round(shown) : -1, 3), lit);
         lit.setShadowLayer(time.h * 0.1f, 0, 0, GREEN);
         time.draw(c, Figures.clock(timeText), lit);
+        int revsOn = revsKnown ? Math.round(revs / RPM_MAX * REVS) : 0;
+        for (int i = 0; i < revsOn; i++) {
+            glow(revColor(i));
+            c.drawRect(revBars[i], lit);
+        }
         if (known && shown >= ALARM) {
             glow(ORANGE);
             c.drawRect(alarmLeft, lit);

@@ -48,6 +48,16 @@ public final class HomeActivity extends Activity
     private static final String PREF_SPEED = "speed";
     private static final String PREF_NAME = "name";
     private static final String PREF_CAR = "car";
+    /** Whether the Vehicle tab shows the CANBus link's state and message count. */
+    private static final String PREF_CAN_STATUS = "can_status";
+    /** NWD's car settings, which keep their own choice of launcher over Android's. */
+    private static final String NWD_SETTINGS = "com.android.car.setting";
+    private static final String CAR_INFO = "com.nwd.can.setting";
+    /** NWD's backlight switch, as its own launcher's screen-off button sends it; a touch turns the screen back on. */
+    private static final String ACTION_BACKLIGHT = "com.nwd.action.ACTION_SET_BACKLIGHT_SWITCH";
+    private static final String EXTRA_BACKLIGHT = "extra_backlight_switch";
+    /** Car Info's switch for its own door window, read each time a door opens; only ADB may write it. */
+    private static final String NWD_DOOR_NOT_SHOW = "car_config_door_not_show";
     private static final String PREF_HOLOGRAM = "hologram";
     private static final String PREF_LOOK = "look";
     private static final String PREF_SHADE = "shade";
@@ -104,11 +114,12 @@ public final class HomeActivity extends Activity
     private Panel appsPanel, settingsPanel, shown;
     private AppsGrid grid;
     private SettingsRows.Row rowHome, rowCar, rowUiStyle, rowFrost, rowShade, rowStyle, rowTop, rowBottom, rowTank, rowAmbient, rowSpeed, rowMedia,
-            rowCarData, rowName;
+            rowCarData, rowCanStatus, rowNwdDoors, rowName;
     private String[] headings;
     /** The last GPS speed in km/h, or -1: none, or GPS is off or Home is not showing. */
     private float gpsKmh = -1;
     private float gaugeShown = -2;
+    private int gaugeRpm = -2;
     /** The door bits last shown on the car, or -1. */
     private int doorsShown = -1;
     private boolean resumed;
@@ -181,6 +192,15 @@ public final class HomeActivity extends Activity
                 showSettings();
             }
         });
+        ChromeButton power = null;
+        if (installed(CAR_INFO) || installed(NWD_SETTINGS)) {
+            power = new ChromeButton(this, R.drawable.ic_power, R.string.screen_off);
+            power.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View v) {
+                    sendBroadcast(new Intent(ACTION_BACKLIGHT).putExtra(EXTRA_BACKLIGHT, false));
+                }
+            });
+        }
         int topWidget = prefs.getInt(PREF_TOP_WIDGET, TOP_CLOCK);
         if (topWidget == TOP_GAUGE_60S) gauge = new Gauge60(this);
         else if (topWidget == TOP_GAUGE_80S) gauge = new Gauge80(this);
@@ -233,7 +253,7 @@ public final class HomeActivity extends Activity
         tiles = new TileView[Slots.COUNT];
         if (!prefs.getBoolean(PREF_CAR, true)) {
             for (int i = 0; i < Slots.COUNT; i++) tiles[i] = tile(i);
-            home = new HomeLayout(this, top, gear, header, upper, lower, tiles);
+            home = new HomeLayout(this, top, gear, power, header, upper, lower, tiles);
             showHeader();
             return;
         }
@@ -267,7 +287,7 @@ public final class HomeActivity extends Activity
         slotItem(nav, Slots.NAV);
         slotItem(phone, Slots.PHONE);
         slotItem(all, Slots.APPS);
-        cockpit = new CockpitLayout(this, top, gear, header, upper, lower, card, sources, vehicle, car, dock);
+        cockpit = new CockpitLayout(this, top, gear, power, header, upper, lower, card, sources, vehicle, car, dock);
         home = cockpit;
         showTab(CockpitLayout.HOME);
     }
@@ -383,6 +403,10 @@ public final class HomeActivity extends Activity
         SettingsRows rows = new SettingsRows(this);
         rowHome = rows.add(R.string.set_home, new View.OnClickListener() {
             @Override public void onClick(View v) {
+                if (nwdLauncherMissing()) {
+                    showNwdLauncherHelp();
+                    return;
+                }
                 if (!startSafely(new Intent(Settings.ACTION_HOME_SETTINGS))) startSafely(new Intent(Settings.ACTION_SETTINGS));
             }
         });
@@ -455,6 +479,24 @@ public final class HomeActivity extends Activity
                         .show();
             }
         });
+        rowCanStatus = rows.add(R.string.set_can_status, new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                prefs.edit().putBoolean(PREF_CAN_STATUS, !prefs.getBoolean(PREF_CAN_STATUS, false)).apply();
+                refreshSettings();
+                onCanChanged();
+            }
+        });
+        if (installed(CAR_INFO)) {
+            rowNwdDoors = rows.add(R.string.set_nwd_doors, new View.OnClickListener() {
+                @Override public void onClick(View v) {
+                    new AlertDialog.Builder(HomeActivity.this)
+                            .setTitle(R.string.set_nwd_doors)
+                            .setMessage(getString(R.string.nwd_doors_help, NWD_DOOR_NOT_SHOW))
+                            .setPositiveButton(android.R.string.ok, null)
+                            .show();
+                }
+            });
+        }
         rowName = rows.add(R.string.set_name, new View.OnClickListener() {
             @Override public void onClick(View v) {
                 editName();
@@ -795,8 +837,14 @@ public final class HomeActivity extends Activity
         String hint = carDataHint();
         if (fuelCard != null) fuelCard.set(can.fuel, tank, hint);
         if (tyreCard != null) tyreCard.set(can.tyres, can.tyresPsi, hint);
-        if (vehicle != null) vehicle.setCar(can, tank, hint);
-        if (gauge != null) gauge.setCar(can.fuel, tank, can.coolant, can.battery);
+        if (vehicle != null) vehicle.setCar(can, tank, hint, prefs.getBoolean(PREF_CAN_STATUS, false));
+        if (gauge != null) {
+            gauge.setCar(can.fuel, tank, can.coolant, can.battery);
+            if (can.rpm != gaugeRpm) {
+                gaugeRpm = can.rpm;
+                gauge.setRpm(can.rpm);
+            }
+        }
         showVehicleSpeed();
         if (shown == settingsPanel) refreshSettings();
     }
@@ -848,7 +896,7 @@ public final class HomeActivity extends Activity
     // Settings
 
     private void refreshSettings() {
-        boolean isDefault = isDefaultHome();
+        boolean isDefault = isDefaultHome() && !nwdLauncherMissing();
         rowHome.setValue(getString(isDefault ? R.string.home_is_default : R.string.home_make_default), !isDefault, 0);
         boolean carOn = prefs.getBoolean(PREF_CAR, true);
         rowCar.setValue(getString(carOn ? R.string.on : R.string.off), carOn, 0);
@@ -868,6 +916,12 @@ public final class HomeActivity extends Activity
         boolean logs = can.log.allowed();
         rowCarData.setValue(getString(!logs ? R.string.car_data_adb : can.log.frames > 0 ? R.string.car_data_live
                 : R.string.car_data_waiting), !logs, 0);
+        boolean status = prefs.getBoolean(PREF_CAN_STATUS, false);
+        rowCanStatus.setValue(getString(status ? R.string.on : R.string.off), status, 0);
+        if (rowNwdDoors != null) {
+            boolean hidden = Settings.System.getInt(getContentResolver(), NWD_DOOR_NOT_SHOW, 0) == 1;
+            rowNwdDoors.setValue(getString(hidden ? R.string.nwd_doors_hidden : R.string.nwd_doors_shown), !hidden, 0);
+        }
         rowName.setValue(prefs.getString(PREF_NAME, getString(R.string.app_name)), false, 0);
     }
 
@@ -1027,6 +1081,67 @@ public final class HomeActivity extends Activity
         ResolveInfo r = getPackageManager().resolveActivity(new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME),
                 PackageManager.MATCH_DEFAULT_ONLY);
         return r != null && r.activityInfo != null && getPackageName().equals(r.activityInfo.packageName);
+    }
+
+    /**
+     * On an NWD unit, whether its car settings name another launcher than Cockpit: the unit then brings that one up
+     * itself, whatever Android's default is. False where the setting cannot be read, or on other units.
+     */
+    private boolean nwdLauncherMissing() {
+        // Settings refresh with every CANBus packet; getprop is a process, so its answer is kept a few seconds.
+        long now = android.os.SystemClock.elapsedRealtime();
+        if (nwdCheckedAt == 0 || now - nwdCheckedAt > 5_000) {
+            nwdCheckedAt = now;
+            String chosen = installed(NWD_SETTINGS) ? systemProperty("persist.nwd.launcher.default") : null;
+            nwdMissing = chosen != null && !chosen.equals(getPackageName());
+        }
+        return nwdMissing;
+    }
+
+    private boolean nwdMissing;
+    private long nwdCheckedAt;
+
+    private boolean installed(String pkg) {
+        try {
+            getPackageManager().getPackageInfo(pkg, 0);
+            return true;
+        } catch (PackageManager.NameNotFoundException e) {
+            return false;
+        }
+    }
+
+    /** A system property through getprop, which apps may run; null if it cannot be read. */
+    private static String systemProperty(String name) {
+        try {
+            java.lang.Process p = new ProcessBuilder("getprop", name).redirectErrorStream(true).start();
+            java.io.BufferedReader in = new java.io.BufferedReader(new java.io.InputStreamReader(p.getInputStream()));
+            String line = in.readLine();
+            in.close();
+            p.destroy();
+            return line == null || line.trim().isEmpty() ? null : line.trim();
+        } catch (java.io.IOException e) {
+            return null;
+        }
+    }
+
+    /** Where NWD keeps its own launcher setting, with a way into its car settings. */
+    private void showNwdLauncherHelp() {
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.set_home)
+                .setMessage(R.string.home_nwd_help)
+                .setPositiveButton(R.string.home_nwd_open, new DialogInterface.OnClickListener() {
+                    @Override public void onClick(DialogInterface dialog, int which) {
+                        Intent i = getPackageManager().getLaunchIntentForPackage(NWD_SETTINGS);
+                        if (i == null || !startSafely(i)) startSafely(new Intent(Settings.ACTION_HOME_SETTINGS));
+                    }
+                })
+                .setNeutralButton(R.string.home_android, new DialogInterface.OnClickListener() {
+                    @Override public void onClick(DialogInterface dialog, int which) {
+                        if (!startSafely(new Intent(Settings.ACTION_HOME_SETTINGS))) startSafely(new Intent(Settings.ACTION_SETTINGS));
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
     }
 
     private int accentIndex() {

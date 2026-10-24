@@ -16,16 +16,21 @@ import android.text.TextPaint;
 /**
  * The 60s cluster after a '65 Mustang: a black panel in a chrome surround, the speedometer a horizontal ribbon
  * across it (tall, narrow numerals over a fan of slanted ticks, an orange needle running along them), and a
- * gold-ringed dial either side, fuel on the left and coolant on the right, their scales round the bottom and their
- * names in italic over the top. Under the ribbon, three windows: a lamp that lights when the battery is low, the
- * time on a drum, a lamp that lights when the tank runs low. On a narrow widget, the ribbon and windows alone.
+ * gold-ringed dial either side: on the left coolant over the top and fuel round the bottom, a needle each, their
+ * names in italic; on the right a tachometer like the Rally Pac's, red from 6000 rpm. Under the ribbon, three
+ * windows: a lamp that lights when the battery is low, the time on a drum, a lamp that lights when the tank runs
+ * low. On a narrow widget, the ribbon and windows alone.
  *
  * Everything that does not move is drawn once into a bitmap; each frame adds the needles, lamps and the time.
  */
 final class GaugeRibbon extends GaugeView {
     private static final int CREAM = 0xFFEEE8D8, NEEDLE = 0xFFFF5A1F, LAMP = 0xFFFF3B2A;
-    /** The dials' scales: from E (or C) at the lower left, round the bottom, to F (or H) at the lower right. */
-    private static final float DIAL_FROM = 150f, DIAL_SWEEP = 120f, COLD = 50f, HOT = 130f;
+    /**
+     * The left dial's scales: fuel from E at the lower left round the bottom to F at the lower right, coolant from C
+     * at the upper left over the top to H at the upper right. The tachometer: 0 at the lower left, round the top.
+     */
+    private static final float FUEL_FROM = 150f, COOL_FROM = 210f, SWEEP = 120f, COLD = 50f, HOT = 130f;
+    private static final float TACH_FROM = 135f, TACH_SWEEP = 270f;
     /** Lamps: the battery below this, the tank below this share. */
     private static final float LOW_VOLTS = 11.8f, LOW_FUEL = 0.12f;
 
@@ -43,7 +48,7 @@ final class GaugeRibbon extends GaugeView {
     private final Path shape = new Path();
     private final RectF panel = new RectF(), band = new RectF(), drum = new RectF(), lampLeft = new RectF(),
             lampRight = new RectF();
-    private final String unit, fuelLabel, coolantLabel;
+    private final String unit, revsLabel, fuelLabel, coolantLabel;
     private boolean dials;
     private float dialR, leftX, rightX, dialY, scaleLeft, scaleRight, lineY, fanBottom, pivotX, pivotY;
     private Shader hubLeft, hubRight, glareLeft, glareRight;
@@ -52,6 +57,7 @@ final class GaugeRibbon extends GaugeView {
     GaugeRibbon(Context context) {
         super(context);
         unit = Text.upper(context.getString(R.string.kmh));
+        revsLabel = context.getString(R.string.rpm_thousands);
         fuelLabel = context.getString(R.string.veh_fuel);
         coolantLabel = context.getString(R.string.veh_coolant);
         numeral.setTypeface(Typeface.create("sans-serif-condensed", Typeface.NORMAL));
@@ -107,8 +113,10 @@ final class GaugeRibbon extends GaugeView {
         ribbon(c);
         windows(c);
         if (dials) {
-            dial(c, leftX, fuelLabel, "E", "F", false);
-            dial(c, rightX, coolantLabel, "C", "H", true);
+            face(c, leftX);
+            split(c, leftX);
+            face(c, rightX);
+            tachometer(c, rightX);
         }
     }
 
@@ -142,9 +150,10 @@ final class GaugeRibbon extends GaugeView {
         lamp(c, lampRight, fuelShare >= 0 && fuelShare < LOW_FUEL, true);
 
         if (dials) {
-            pointer(c, leftX, DIAL_FROM - DIAL_SWEEP * Math.max(0f, fuelShare));
+            pointer(c, leftX, FUEL_FROM - SWEEP * Math.max(0f, fuelShare), dialR * 0.6f);
             float heat = Float.isNaN(coolant) ? 0f : Math.max(0f, Math.min(1f, (coolant - COLD) / (HOT - COLD)));
-            pointer(c, rightX, DIAL_FROM - DIAL_SWEEP * heat);
+            pointer(c, leftX, COOL_FROM + SWEEP * heat, dialR * 0.6f);
+            pointer(c, rightX, TACH_FROM + TACH_SWEEP * revs / RPM_MAX, dialR * 0.68f);
             cap(c, leftX, hubLeft);
             cap(c, rightX, hubRight);
             glass(c, leftX, glareLeft);
@@ -275,8 +284,8 @@ final class GaugeRibbon extends GaugeView {
         }
     }
 
-    /** A gold-ringed dial: its name in italic over the top, its scale round the bottom. */
-    private void dial(Canvas c, float x, String name, String from, String to, boolean hot) {
+    /** A gold-ringed dial's ring and face. */
+    private void face(Canvas c, float x) {
         float r = dialR, y = dialY;
         Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
         p.setShader(new SweepGradient(x, y, new int[] {0xFFF4E3B5, 0xFF7A5E2A, 0xFFE6CC8E, 0xFF5A4520, 0xFFF0DCA4,
@@ -288,34 +297,76 @@ final class GaugeRibbon extends GaugeView {
         p.setShader(new RadialGradient(x, y - r * 0.3f, r * 1.05f, new int[] {0xFF333C4A, 0xFF181D25, 0xFF0A0D11},
                 new float[] {0f, 0.6f, 1f}, Shader.TileMode.CLAMP));
         c.drawCircle(x, y, r * 0.83f, p);
+    }
 
-        script.setTextSize(r * 0.24f);
-        float max = r * 1.2f;
-        if (script.measureText(name) > max) script.setTextSize(script.getTextSize() * max / script.measureText(name));
-        c.drawText(name, x, y - r * 0.36f, script);
-
+    /** Coolant over the top, against a bracket red at its hot end; fuel round the bottom; their names in italic. */
+    private void split(Canvas c, float x) {
+        float r = dialR, y = dialY;
         Paint line = new Paint(Paint.ANTI_ALIAS_FLAG);
         line.setColor(CREAM);
         line.setStrokeWidth(Math.max(1f, r * 0.035f));
         for (int k = 0; k <= 4; k++) {
-            double a = Math.toRadians(DIAL_FROM - DIAL_SWEEP * k / 4);
-            float cos = (float) Math.cos(a), sin = (float) Math.sin(a);
             float from0 = r * (k % 2 == 0 ? 0.58f : 0.63f);
-            c.drawLine(x + cos * from0, y + sin * from0, x + cos * r * 0.72f, y + sin * r * 0.72f, line);
+            tick(c, x, FUEL_FROM - SWEEP * k / 4, from0, r * 0.72f, line);
+            tick(c, x, COOL_FROM + SWEEP * k / 4, from0, r * 0.72f, line);
         }
-        if (hot) {
-            // The bracket the coolant reads against, red at its hot end.
-            line.setStyle(Paint.Style.STROKE);
-            line.setStrokeWidth(Math.max(1f, r * 0.03f));
-            float br = r * 0.72f;
-            RectF o = new RectF(x - br, y - br, x + br, y + br);
-            c.drawArc(o, DIAL_FROM - DIAL_SWEEP, DIAL_SWEEP, false, line);
-            line.setColor(0xFFE0331F);
-            c.drawArc(o, DIAL_FROM - DIAL_SWEEP, DIAL_SWEEP * 0.15f, false, line);
+        line.setStyle(Paint.Style.STROKE);
+        line.setStrokeWidth(Math.max(1f, r * 0.03f));
+        float br = r * 0.72f;
+        RectF o = new RectF(x - br, y - br, x + br, y + br);
+        c.drawArc(o, COOL_FROM, SWEEP, false, line);
+        line.setColor(0xFFE0331F);
+        c.drawArc(o, COOL_FROM + SWEEP * 0.85f, SWEEP * 0.15f, false, line);
+
+        small.setTextSize(r * 0.19f);
+        letter(c, x, "C", COOL_FROM - 14f);
+        letter(c, x, "H", COOL_FROM + SWEEP + 14f);
+        letter(c, x, "E", FUEL_FROM + 14f);
+        letter(c, x, "F", FUEL_FROM - SWEEP - 14f);
+        name(c, x, coolantLabel, y - r * 0.31f);
+        name(c, x, fuelLabel, y + r * 0.47f);
+    }
+
+    /** 0 to 7 thousand rpm, the last thousand in red; its unit in italic in the gap at the foot. */
+    private void tachometer(Canvas c, float x) {
+        float r = dialR, y = dialY;
+        Paint line = new Paint(Paint.ANTI_ALIAS_FLAG);
+        for (int v = 0; v <= RPM_MAX; v += 500) {
+            boolean major = v % 1000 == 0;
+            line.setColor(v >= REDLINE ? 0xFFE0331F : CREAM);
+            line.setStrokeWidth(Math.max(1f, r * (major ? 0.035f : 0.025f)));
+            tick(c, x, TACH_FROM + TACH_SWEEP * v / RPM_MAX, r * (major ? 0.6f : 0.65f), r * 0.73f, line);
         }
-        small.setTextSize(r * 0.2f);
-        letter(c, x, from, DIAL_FROM + 14f);
-        letter(c, x, to, DIAL_FROM - DIAL_SWEEP - 14f);
+        line.setStyle(Paint.Style.STROKE);
+        line.setColor(0xFFE0331F);
+        line.setStrokeWidth(Math.max(2f, r * 0.05f));
+        float br = r * 0.76f, redFrom = TACH_SWEEP * REDLINE / RPM_MAX;
+        c.drawArc(x - br, y - br, x + br, y + br, TACH_FROM + redFrom, TACH_SWEEP - redFrom, false, line);
+        small.setTextSize(r * 0.17f);
+        for (int k = 0; k <= RPM_MAX / 1000; k++) {
+            small.setColor(k * 1000 >= REDLINE ? 0xFFFF5A44 : CREAM);
+            double a = Math.toRadians(TACH_FROM + TACH_SWEEP * k * 1000 / RPM_MAX);
+            float at = r * 0.45f;
+            c.drawText(String.valueOf(k), x + (float) Math.cos(a) * at,
+                    y + (float) Math.sin(a) * at + small.getTextSize() * 0.36f, small);
+        }
+        small.setColor(CREAM);
+        script.setTextSize(r * 0.14f);
+        c.drawText(revsLabel, x, y + r * 0.62f, script);
+    }
+
+    private void tick(Canvas c, float x, float degrees, float from, float to, Paint p) {
+        double a = Math.toRadians(degrees);
+        float cos = (float) Math.cos(a), sin = (float) Math.sin(a);
+        c.drawLine(x + cos * from, dialY + sin * from, x + cos * to, dialY + sin * to, p);
+    }
+
+    /** A dial's name in italic, as wide as fits. */
+    private void name(Canvas c, float x, String s, float baseline) {
+        script.setTextSize(dialR * 0.18f);
+        float max = dialR * 0.95f;
+        if (script.measureText(s) > max) script.setTextSize(script.getTextSize() * max / script.measureText(s));
+        c.drawText(s, x, baseline, script);
     }
 
     private void letter(Canvas c, float x, String s, float degrees) {
@@ -330,8 +381,8 @@ final class GaugeRibbon extends GaugeView {
     }
 
     /** A dial's needle, from the hub out over its scale. */
-    private void pointer(Canvas c, float x, float degrees) {
-        float w = dialR * 0.035f, length = dialR * 0.68f;
+    private void pointer(Canvas c, float x, float degrees, float length) {
+        float w = dialR * 0.035f;
         c.save();
         c.rotate(degrees, x, dialY);
         shape.reset();
