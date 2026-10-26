@@ -35,6 +35,8 @@ final class Ambient implements Sound.Listener {
     static final int[] MODE_NAMES = {R.string.led_mode_normal, R.string.led_mode_race, R.string.led_mode_music,
         R.string.led_mode_static};
     static final int RED = 0xFF0000, OFF = 0x000000;
+    /** The rev bar's shapes: filling left to right, from both ends to the middle, or the whole dashboard in one colour. */
+    static final int LEFT_TO_RIGHT = 0, EDGES = 1, WHOLE = 2;
     /** The colours offered on the Lights tab. */
     static final int[] COLORS = {0x8A2BFF, 0xC800FF, 0xFF2D95, 0xFF0000, 0xFF6A00, 0xFFC800, 0x00FF2A, 0x00E5FF,
         0x0050FF, 0xFFFFFF};
@@ -70,6 +72,8 @@ final class Ambient implements Sound.Listener {
     float brake;
     /** The dashboard's LEDs set by hand (0: as its controller says); how it lights them one by one. */
     int topPixels, topMethod;
+    /** The rev bar's shape; whether the dashboard's right-hand part is fitted reversed, and the step it starts at (0: half way). */
+    int barShape, topFlip, topSplit;
     /** Normal's speed and Music's sensitivity, 0 to 2 each; where Music listens, Sound.OUTPUT or MIC. */
     int chase, musicSense, musicSource;
     /** In Normal and Static, the footwells show the fuel instead of their colours. */
@@ -116,6 +120,9 @@ final class Ambient implements Sound.Listener {
         barFrom = prefs.getInt("led_bar_from", 800);
         topPixels = prefs.getInt("led_top_pixels", 0);
         topMethod = prefs.getInt("led_top_method", LedProtocol.AUTO);
+        barShape = prefs.getInt("led_bar_shape", LEFT_TO_RIGHT);
+        topFlip = prefs.getInt("led_top_flip", 0);
+        topSplit = prefs.getInt("led_top_split", 0);
         chase = prefs.getInt("led_chase", 0);
         musicSense = prefs.getInt("led_music_sense", 1);
         musicSource = prefs.getInt("led_music_source", Sound.OUTPUT);
@@ -134,6 +141,7 @@ final class Ambient implements Sound.Listener {
                 .putInt("led_bottom_color", bottomColor).putInt("led_bottom_color2", bottomColor2)
                 .putInt("led_brightness", brightness).putInt("led_redline", redline).putFloat("led_brake", brake)
                 .putInt("led_bar_from", barFrom).putInt("led_top_pixels", topPixels).putInt("led_top_method", topMethod)
+                .putInt("led_bar_shape", barShape).putInt("led_top_flip", topFlip).putInt("led_top_split", topSplit)
                 .putInt("led_chase", chase).putInt("led_music_sense", musicSense)
                 .putInt("led_music_source", musicSource).putBoolean("led_bottom_fuel", bottomFuel).apply();
         leds.method(LedStrips.TOP, topMethod);
@@ -273,14 +281,18 @@ final class Ambient implements Sound.Listener {
         if (fuelShows()) bottom = fuel(litres);
         // The rev bar: its colours by place, lit up to the revs; all of it flashing at the redline.
         if ((mode == RACE || trial) && revs >= 0) {
-            float f = fill(revs);
-            topBar = bar(count, shifting ? (flash ? count : 0) : Math.max(Math.max(1, Math.round(count / 20f)),
-                    Math.round(f * count)));
+            float f = fill(revs), least = 1f / 20;
+            float lit = shifting ? (flash ? 1.01f : 0f) : Math.max(least, f);
+            topBar = barShape == WHOLE ? null : barShape == EDGES ? edges(count, split(count), lit) : bar(count, lit);
             top = shifting ? (flash ? barColor(1f) : OFF) : barColor(f);
         }
         shownTop = top;
         shownBottom = bottom;
-        leds.set(LedStrips.TOP, topOn || trial, dim(top), topBar != null && steps > 0 ? dim(topBar) : null);
+        // Laid out along the dashboard for the tab; in the strip's own order for the strip. A strip that lights its
+        // steps one by one takes a single colour as one for every step too: on IOTBT ones a plain colour may not
+        // reach all their segments.
+        int[] each = steps <= 0 ? null : topBar != null ? fitted(topBar) : uniform(steps, top);
+        leds.set(LedStrips.TOP, topOn || trial, dim(top), each == null ? null : dim(each));
         leds.set(LedStrips.BOTTOM, bottomOn, dim(bottom));
         listener.onAmbientChanged();
         boolean moving = trial || mode == NORMAL && (topOn || bottomOn)
@@ -325,10 +337,46 @@ final class Ambient implements Sound.Listener {
         return Math.max(0f, Math.min(1f, (revs - barFrom) / (float) Math.max(100, redline - barFrom)));
     }
 
-    /** A rev bar of count LEDs, the first lit of them in their colours, the rest off. */
-    static int[] bar(int count, int lit) {
+    /** A rev bar of count LEDs lit from the left as far as lit (0 to 1), each in the colour of its place. */
+    static int[] bar(int count, float lit) {
         int[] out = new int[count];
-        for (int i = 0; i < Math.min(lit, count); i++) out[i] = barColor(count == 1 ? 1f : i / (float) (count - 1));
+        for (int i = 0; i < count; i++) {
+            float t = count == 1 ? 1f : i / (float) (count - 1);
+            if (i < Math.round(lit * count)) out[i] = barColor(t);
+        }
+        return out;
+    }
+
+    /** A rev bar filling from both ends to the middle (the left part's split LEDs, then the rest), as far as lit. */
+    static int[] edges(int count, int split, float lit) {
+        int[] out = new int[count];
+        for (int i = 0; i < count; i++) {
+            // How far in from its own end, 0 to 1.
+            float d = i < split ? (split == 1 ? 1f : i / (float) (split - 1))
+                    : count - split == 1 ? 1f : (count - 1 - i) / (float) (count - split - 1);
+            int rank = i < split ? i : count - 1 - i, size = i < split ? split : count - split;
+            if (rank < Math.round(lit * size)) out[i] = barColor(d);
+        }
+        return out;
+    }
+
+    /** Where the dashboard's right-hand part starts, in steps. */
+    private int split(int count) {
+        return topSplit > 0 ? Math.max(1, Math.min(topSplit, count - 1)) : count / 2;
+    }
+
+    /** A bar laid out left to right, in the strip's own order: its right-hand part reversed where it is fitted so. */
+    private int[] fitted(int[] laid) {
+        int n = laid.length, k = split(n);
+        if (topFlip == 0 || n < 2) return laid;
+        int[] out = new int[n];
+        for (int i = 0; i < n; i++) out[i] = i < k ? laid[i] : laid[n - 1 - (i - k)];
+        return out;
+    }
+
+    private static int[] uniform(int count, int rgb) {
+        int[] out = new int[count];
+        java.util.Arrays.fill(out, rgb);
         return out;
     }
 

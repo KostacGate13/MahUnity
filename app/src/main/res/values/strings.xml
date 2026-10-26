@@ -166,6 +166,20 @@
     <string name="set_led_bar_from">Rev bar: starts at</string>
     <string name="set_led_pixels">Rev bar: LEDs</string>
     <string name="set_led_sweep">Rev bar: try it</string>
+    <string name="set_led_bar_shape">Rev bar: shape</string>
+    <string-array name="led_bar_shapes">
+        <item>Left to right</item>
+        <item>From both ends to the middle</item>
+        <item>Whole dashboard in one colour</item>
+    </string-array>
+    <string name="set_led_flip">Dashboard: right-hand part</string>
+    <string-array name="led_flips">
+        <item>As the left</item>
+        <item>Fitted reversed</item>
+    </string-array>
+    <string name="set_led_split">Dashboard: right-hand part starts at step</string>
+    <string name="led_split_half">half way</string>
+    <string name="led_split_hint">0: half way</string>
     <string name="set_led_chase">Normal: movement</string>
     <string-array name="led_chases">
         <item>Slow</item>
@@ -215,7 +229,7 @@
     </string-array>
     <string name="set_led_status">Status</string>
     <string name="set_led_help">Help</string>
-    <string name="led_help">Cockpit drives Bluetooth LED controllers itself: ZENGGE (LEDnetWF), ELK-BLEDOM (Lotus Lantern, Duoco Strip and most footwell kits), Triones and Magic Home BLE (HappyLighting).\n\nA controller takes one connection at a time. Close its own app first, on the unit and on your phone, then choose it here.\n\nNormal: each strip\'s two colours chase each other slowly from left to right (a strip that cannot light its LEDs one by one fades from one to the other).\nRace: the dashboard is a rev bar, as on a racing car\'s wheel: at idle its left end is green, it fills to the right as the revs rise, red half way, purple at the end, and all of it flashes at the shift light. The footwells keep their colour and flash red while you brake.\nMusic: the dashboard fills from the left with the music, the footwells pulse with the bass. What the unit plays is heard through Android; if the radio does not show, choose the microphone.\nStatic: each strip\'s first colour.\nIn Normal and Static, the pump button on the footwells shows the fuel on them instead: red up to 5 L, blue up to 15 L, purple up to 29 L, green above.\n\nLED by LED takes an addressable (\"symphony\") strip on a ZENGGE controller, set to one segment in its app. IOTBT ones are the other way round: each segment is a step of the bar, so set, say, 20 segments of 10 LEDs. If the bar does not fill from the left, set Rev bar: LEDs to the strip\'s LED count and try both LED commands with Rev bar: try it. Status shows the controller\'s model and its answers: send them over if it still does not work.</string>
+    <string name="led_help">Cockpit drives Bluetooth LED controllers itself: ZENGGE (LEDnetWF), ELK-BLEDOM (Lotus Lantern, Duoco Strip and most footwell kits), Triones and Magic Home BLE (HappyLighting).\n\nA controller takes one connection at a time. Close its own app first, on the unit and on your phone, then choose it here.\n\nNormal: each strip\'s two colours chase each other slowly from left to right (a strip that cannot light its LEDs one by one fades from one to the other).\nRace: the dashboard is a rev bar, as on a racing car\'s wheel: at idle its left end is green, it fills to the right as the revs rise, red half way, purple at the end, and all of it flashes at the shift light. The footwells keep their colour and flash red while you brake.\nMusic: the dashboard fills from the left with the music, the footwells pulse with the bass. What the unit plays is heard through Android; if the radio does not show, choose the microphone.\nStatic: each strip\'s first colour.\nIn Normal and Static, the pump button on the footwells shows the fuel on them instead: red up to 5 L, blue up to 15 L, purple up to 29 L, green above.\n\nLED by LED takes an addressable (\"symphony\") strip on a ZENGGE controller, set to one segment in its app. IOTBT ones are the other way round: each segment is a step of the bar, so set, say, 20 segments of 10 LEDs. Rev bar: shape fills it left to right, from both ends to the middle, or all at once; if the dashboard\'s right-hand part is fitted reversed, say so under Dashboard: right-hand part. If the bar does not fill from the left, set Rev bar: LEDs to the strip\'s LED count and try both LED commands with Rev bar: try it. Status shows the controller\'s model and its answers: send them over if it still does not work.</string>
     <string name="led_choose">Choose</string>
     <string name="led_scan_none">None (remove)</string>
     <string name="led_no_ble">This unit has no Bluetooth LE that apps can use.</string>

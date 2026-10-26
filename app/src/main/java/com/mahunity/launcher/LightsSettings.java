@@ -45,7 +45,7 @@ final class LightsSettings {
     private final LedStrips leds;
     private final Host host;
     private final SettingsRows.Row rowTop, rowBottom, rowMode, rowBright, rowChase, rowSource, rowSense, rowRedline,
-            rowBarFrom, rowPixels, rowMethod, rowBrake, rowStatus;
+            rowBarFrom, rowShape, rowPixels, rowMethod, rowFlip, rowSplit, rowBrake, rowStatus;
     private int pendingRole = -1;
 
     LightsSettings(final Activity activity, final Ambient ambient, LedStrips leds, final Host host) {
@@ -119,6 +119,15 @@ final class LightsSettings {
                 pickNumber(R.string.set_led_bar_from, ambient.barFrom, 1);
             }
         });
+        rowShape = rows.add(R.string.set_led_bar_shape, new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                pick(R.string.set_led_bar_shape, R.array.led_bar_shapes, ambient.barShape, new Choice() {
+                    @Override public void chosen(int which) {
+                        ambient.barShape = which;
+                    }
+                });
+            }
+        });
         rowPixels = rows.add(R.string.set_led_pixels, new View.OnClickListener() {
             @Override public void onClick(View v) {
                 pickNumber(R.string.set_led_pixels, ambient.topPixels, 2);
@@ -131,6 +140,20 @@ final class LightsSettings {
                         ambient.topMethod = which;
                     }
                 });
+            }
+        });
+        rowFlip = rows.add(R.string.set_led_flip, new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                pick(R.string.set_led_flip, R.array.led_flips, ambient.topFlip, new Choice() {
+                    @Override public void chosen(int which) {
+                        ambient.topFlip = which;
+                    }
+                });
+            }
+        });
+        rowSplit = rows.add(R.string.set_led_split, new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                pickNumber(R.string.set_led_split, ambient.topSplit, 3);
             }
         });
         rows.add(R.string.set_led_sweep, new View.OnClickListener() {
@@ -181,6 +204,9 @@ final class LightsSettings {
                 : said > 0 ? activity.getString(R.string.led_pixels_auto_found, said) : activity.getString(R.string.led_pixels_auto),
                 false, 0);
         rowMethod.setValue(method(), false, 0);
+        rowShape.setValue(item(R.array.led_bar_shapes, ambient.barShape), false, 0);
+        rowFlip.setValue(item(R.array.led_flips, ambient.topFlip), false, 0);
+        rowSplit.setValue(ambient.topSplit > 0 ? String.valueOf(ambient.topSplit) : activity.getString(R.string.led_split_half), false, 0);
         rowBrake.setValue(item(R.array.led_brakes, brakeIndex()), false, 0);
         rowStatus.setValue(status(LedStrips.TOP) + " · " + status(LedStrips.BOTTOM), false, 0);
     }
@@ -421,13 +447,17 @@ final class LightsSettings {
                 }).show();
     }
 
-    /** A whole number: which 0 the redline, 1 the bar's start (both rpm), 2 the LEDs (0 for the controller's). */
+    /**
+     * A whole number: which 0 the redline, 1 the bar's start (both rpm), 2 the LEDs (0 for the controller's), 3 the
+     * step the dashboard's right-hand part starts at (0 for half way).
+     */
     private void pickNumber(int titleRes, int current, final int which) {
         final EditText field = new EditText(activity);
         field.setInputType(InputType.TYPE_CLASS_NUMBER);
         field.setText(String.valueOf(current));
         field.setSelectAllOnFocus(true);
         if (which == 2) field.setHint(R.string.led_pixels_hint);
+        if (which == 3) field.setHint(R.string.led_split_hint);
         new AlertDialog.Builder(activity).setTitle(titleRes).setView(field)
                 .setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener() {
                     @Override public void onClick(DialogInterface d, int w) {
@@ -439,7 +469,8 @@ final class LightsSettings {
                         }
                         if (which == 0) ambient.redline = Math.round(Math.max(Math.max(1500f, ambient.barFrom + 500f), Math.min(v, 9000f)));
                         else if (which == 1) ambient.barFrom = Math.round(Math.max(0f, Math.min(v, ambient.redline - 500f)));
-                        else ambient.topPixels = Math.round(Math.max(0f, Math.min(v, 1000f)));
+                        else if (which == 2) ambient.topPixels = Math.round(Math.max(0f, Math.min(v, 1000f)));
+                        else ambient.topSplit = Math.round(Math.max(0f, Math.min(v, 1000f)));
                         changed();
                     }
                 }).setNegativeButton(android.R.string.cancel, null).show();
