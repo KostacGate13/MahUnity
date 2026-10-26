@@ -62,6 +62,11 @@ abstract class LedProtocol {
         return null;
     }
 
+    /** The same in as many writes as it takes, each at most packet bytes where the way in use can split it. */
+    byte[][] pixels(int[] rgb, int packet) {
+        return new byte[][] {pixels(rgb)};
+    }
+
     /** How long pixels() is for this many LEDs; above any write if not addressable(). */
     int pixelBytes(int count) {
         return Integer.MAX_VALUE;
@@ -105,7 +110,7 @@ abstract class LedProtocol {
     }
 
     /** Ways of lighting LEDs one by one: chosen from the model, the newer E1 03, the older 59. */
-    static final int AUTO = 0, E1 = 1, ZONES = 2;
+    static final int AUTO = 0, E1 = 1, ZONES = 2, E1_PARTS = 3;
 
     /**
      * ZENGGE's LEDnetWF controllers: every command in an envelope (a counter, its length, a type: 0B a command,
@@ -203,24 +208,43 @@ abstract class LedProtocol {
         }
 
         @Override int pixelBytes(int count) {
+            if (method == E1_PARTS) return count > 255 ? Integer.MAX_VALUE : 8 + 7 + 4;
             return method == ZONES ? 8 + 9 + 3 * count : count > 255 ? Integer.MAX_VALUE : 8 + 7 + 4 * count;
         }
 
         @Override byte[] pixels(int[] rgb) {
-            return method == ZONES ? zones(rgb) : segments(rgb);
+            return method == ZONES ? zones(rgb) : segments(rgb, 0, rgb.length);
         }
 
-        /** E1 03 00, the count, 00 00, the count again, then A1 and hue (halved), saturation, value for each; no sum. */
-        private byte[] segments(int[] rgb) {
-            int n = rgb.length;
-            byte[] c = new byte[7 + 4 * n];
+        /**
+         * In parts, for E1_PARTS: each E1 03 with the whole count, then where its part starts (two bytes) and how
+         * many it holds. A guess at what the 00 00 and the repeated count of a whole E1 03 are, as the controllers
+         * must take a strip too long for one packet somehow.
+         */
+        @Override byte[][] pixels(int[] rgb, int packet) {
+            if (method != E1_PARTS) return super.pixels(rgb, packet);
+            int each = Math.max(1, (packet - 8 - 7) / 4), n = rgb.length;
+            byte[][] out = new byte[(n + each - 1) / each][];
+            for (int k = 0; k < out.length; k++) out[k] = segments(rgb, k * each, Math.min(each, n - k * each));
+            return out;
+        }
+
+        /**
+         * E1 03 00, the count, then (as a whole E1 03 has it) 00 00 and the count again, or here the part's start and
+         * size; then A1 and hue (halved), saturation, value for each; no sum.
+         */
+        private byte[] segments(int[] rgb, int from, int size) {
+            byte[] c = new byte[7 + 4 * size];
             c[0] = (byte) 0xe1;
             c[1] = 0x03;
-            c[3] = (byte) n;
-            c[6] = (byte) n;
+            c[3] = (byte) rgb.length;
+            c[4] = (byte) (from >> 8);
+            c[5] = (byte) from;
+            c[6] = (byte) size;
             float[] hsv = new float[3];
-            for (int i = 0; i < n; i++) {
-                Color.RGBToHSV(rgb[i] >> 16 & 0xFF, rgb[i] >> 8 & 0xFF, rgb[i] & 0xFF, hsv);
+            for (int i = 0; i < size; i++) {
+                int col = rgb[from + i];
+                Color.RGBToHSV(col >> 16 & 0xFF, col >> 8 & 0xFF, col & 0xFF, hsv);
                 c[7 + 4 * i] = (byte) 0xa1;
                 c[8 + 4 * i] = (byte) Math.round(hsv[0] / 2);
                 c[9 + 4 * i] = (byte) Math.round(hsv[1] * 100);

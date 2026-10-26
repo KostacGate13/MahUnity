@@ -23,6 +23,7 @@ import android.os.Process;
 import android.os.SystemClock;
 import android.util.SparseArray;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -49,6 +50,9 @@ final class LedStrips {
 
     static final int TOP = 0, BOTTOM = 1;
     static final int NONE = 0, CONNECTING = 1, READY = 2;
+    /** A connection not made in this long is given up and tried again; this many writes failing in a row, too. */
+    private static final long CONNECT_MS = 20_000;
+    private static final int FAILS = 12, LONG_FAILS = 2;
     private static final long RETRY_MS = 6_000, WRITE_TIMEOUT_MS = 400, SCAN_MS = 12_000, SETUP_MS = 3_000,
             ASK_MS = 2_500;
     /** The most a write can carry when the controller takes long writes. */
@@ -83,10 +87,29 @@ final class LedStrips {
         final Map<Integer, String> answers = new LinkedHashMap<>();
         /** The MTU agreed with the controller. */
         int mtu = 23;
+        /** Long writes (over one packet) failed on it: from then on one packet at a time. */
+        boolean noLong;
+        /** Writes gone through and failed, for the status screen; failures in a row. */
+        int writesOk, writesFailed;
+        private int fails, longFails;
+        private boolean longInFlight;
+        private long connectingSince;
+        /** The rest of a command sent in parts, sent before anything new. */
+        private final ArrayDeque<byte[]> queue = new ArrayDeque<>();
+        /** Its own watch on an unanswered write: one strip writing often must not put off the other's. */
+        private final Runnable unstick = new Runnable() {
+            @Override public void run() {
+                if (busy && SystemClock.elapsedRealtime() >= busyUntil) {
+                    busy = false;
+                    failed(Strip.this);
+                    pump(Strip.this);
+                }
+            }
+        };
         private BluetoothGatt gatt;
         private BluetoothGattCharacteristic channel;
         private boolean busy;
-        private long busySince;
+        private long busyUntil;
         // Wanted and sent: on or off, the colour, and a colour for each LED (null: the colour throughout).
         private boolean on;
         private int color;
@@ -114,21 +137,16 @@ final class LedStrips {
 
     private final Runnable retry = new Runnable() {
         @Override public void run() {
-            for (Strip s : strips) connect(s);
-            main.postDelayed(this, RETRY_MS);
-        }
-    };
-
-    private final Runnable unstick = new Runnable() {
-        @Override public void run() {
-            // A write never confirmed: carry on rather than wait for ever.
             long now = SystemClock.elapsedRealtime();
             for (Strip s : strips) {
-                if (s.busy && now - s.busySince > WRITE_TIMEOUT_MS) {
-                    s.busy = false;
-                    pump(s);
+                // A connection that never came back either way: Android sometimes says nothing.
+                if (s.state == CONNECTING && now - s.connectingSince > CONNECT_MS) {
+                    disconnect(s);
+                    listener.onLedsChanged();
                 }
+                connect(s);
             }
+            main.postDelayed(this, RETRY_MS);
         }
     };
 
@@ -187,6 +205,18 @@ final class LedStrips {
         if (s.protocol != null) s.protocol.use(method, s.product);
         s.sentBar = null;
         pump(s);
+    }
+
+    /** Drops both strips and connects again from scratch, also to a device that spoke no known protocol. */
+    void reconnect() {
+        for (Strip s : strips) {
+            disconnect(s);
+            s.unsupported = false;
+            s.noLong = false;
+            s.writesOk = s.writesFailed = 0;
+            connect(s);
+        }
+        listener.onLedsChanged();
     }
 
     void start() {
@@ -256,6 +286,7 @@ final class LedStrips {
             return;
         }
         s.state = CONNECTING;
+        s.connectingSince = SystemClock.elapsedRealtime();
         s.gatt = Build.VERSION.SDK_INT >= 23 ? d.connectGatt(context, false, callback(s), BluetoothDevice.TRANSPORT_LE)
                 : d.connectGatt(context, false, callback(s));
         if (s.gatt == null) s.state = NONE;
@@ -282,6 +313,10 @@ final class LedStrips {
         s.listening = false;
         s.asks = 0;
         s.mtu = 23;
+        s.fails = s.longFails = 0;
+        s.longInFlight = false;
+        s.queue.clear();
+        main.removeCallbacks(s.unstick);
     }
 
     private BluetoothGattCallback callback(final Strip s) {
@@ -300,10 +335,16 @@ final class LedStrips {
                 });
             }
 
-            @Override public void onServicesDiscovered(final BluetoothGatt gatt, int status) {
+            @Override public void onServicesDiscovered(final BluetoothGatt gatt, final int status) {
                 main.post(new Runnable() {
                     @Override public void run() {
                         if (gatt != s.gatt) return;
+                        if (status != BluetoothGatt.GATT_SUCCESS || gatt.getServices().isEmpty()) {
+                            // Nothing found this time: a bad link, not a strange device. Again later.
+                            disconnect(s);
+                            listener.onLedsChanged();
+                            return;
+                        }
                         LedProtocol p = LedProtocol.of(gatt);
                         if (p == null) {
                             // Not a controller we know: note its services and let go, so its own app can have it.
@@ -368,11 +409,19 @@ final class LedStrips {
                 if (Build.VERSION.SDK_INT < 33) heard(gatt, s, c.getValue());
             }
 
-            @Override public void onCharacteristicWrite(final BluetoothGatt gatt, BluetoothGattCharacteristic c, int status) {
+            @Override public void onCharacteristicWrite(final BluetoothGatt gatt, BluetoothGattCharacteristic c, final int status) {
                 main.post(new Runnable() {
                     @Override public void run() {
                         if (gatt != s.gatt) return;
                         s.busy = false;
+                        main.removeCallbacks(s.unstick);
+                        if (status == BluetoothGatt.GATT_SUCCESS) {
+                            s.writesOk++;
+                            s.fails = 0;
+                            s.longInFlight = false;
+                        } else {
+                            failed(s);
+                        }
                         pump(s);
                     }
                 });
@@ -380,9 +429,41 @@ final class LedStrips {
         };
     }
 
-    /** What one write can carry at the strip's MTU: more as a long write, where the characteristic takes those. */
+    /**
+     * What one write can carry at the strip's MTU: more as a long write, where the characteristic takes those and
+     * they have not failed on it.
+     */
     private static int room(Strip s) {
-        return Math.max(s.mtu - 3, writes(s, BluetoothGattCharacteristic.PROPERTY_WRITE) ? LONG_WRITE : 0);
+        boolean longWrites = !s.noLong && writes(s, BluetoothGattCharacteristic.PROPERTY_WRITE);
+        return Math.max(s.mtu - 3, longWrites ? LONG_WRITE : 0);
+    }
+
+    /** One packet's worth, for commands sent in parts. */
+    private static int packet(Strip s) {
+        return s.mtu - 3;
+    }
+
+    /**
+     * A write that failed or was never answered. Long ones failing means the controller does not take them, so
+     * none are tried again; many in a row means the link is gone though Android has not said so.
+     */
+    private void failed(Strip s) {
+        s.writesFailed++;
+        s.fails++;
+        if (s.longInFlight && ++s.longFails >= LONG_FAILS) {
+            s.noLong = true;
+            listener.onLedsChanged();
+        }
+        s.longInFlight = false;
+        // What it was sending may not have arrived: all again.
+        s.sentOn = null;
+        s.sentColor = -1;
+        s.sentBar = null;
+        s.queue.clear();
+        if (s.fails >= FAILS) {
+            disconnect(s);
+            listener.onLedsChanged();
+        }
     }
 
     private static boolean writes(Strip s, int property) {
@@ -445,6 +526,10 @@ final class LedStrips {
      */
     private void pump(final Strip s) {
         if (s.state != READY || s.busy || s.channel == null) return;
+        if (!s.queue.isEmpty()) {
+            write(s, s.queue.poll());
+            return;
+        }
         byte[] command = null;
         if (!s.hello) {
             s.hello = true;
@@ -475,7 +560,9 @@ final class LedStrips {
         if (command == null && s.on) {
             if (s.bar != null && lightsEach(s.role, s.bar.length)) {
                 if (!Arrays.equals(s.bar, s.sentBar)) {
-                    command = s.protocol.pixels(s.bar);
+                    byte[][] parts = s.protocol.pixels(s.bar, packet(s));
+                    command = parts[0];
+                    for (int i = 1; i < parts.length; i++) s.queue.add(parts[i]);
                     s.sentBar = s.bar;
                     s.sentColor = -1;
                 }
@@ -496,6 +583,7 @@ final class LedStrips {
         boolean quick = writes(s, BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE)
                 && (command.length <= s.mtu - 3 || !writes(s, BluetoothGattCharacteristic.PROPERTY_WRITE));
         int type = quick ? BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE : BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT;
+        s.longInFlight = command.length > s.mtu - 3;
         boolean sent;
         try {
             if (Build.VERSION.SDK_INT >= 33) {
@@ -509,17 +597,16 @@ final class LedStrips {
             sent = false;
         }
         if (!sent) {
-            // The stack was busy: try again shortly with whatever is wanted by then.
-            s.sentOn = null;
-            s.sentColor = -1;
-            s.sentBar = null;
-            s.busy = true;
-        } else {
-            s.busy = true;
+            // The stack was busy or the link is going: try again shortly with whatever is wanted by then.
+            failed(s);
+            if (s.state != READY) return;
         }
-        s.busySince = SystemClock.elapsedRealtime();
-        main.removeCallbacks(unstick);
-        main.postDelayed(unstick, WRITE_TIMEOUT_MS + 20);
+        s.busy = true;
+        // A long write takes several packets, each answered: more time for it.
+        long wait = WRITE_TIMEOUT_MS * (s.longInFlight ? 4 : 1);
+        s.busyUntil = SystemClock.elapsedRealtime() + wait;
+        main.removeCallbacks(s.unstick);
+        main.postDelayed(s.unstick, wait + 20);
     }
 
     /** Scans for a while, listing every named device, LED controllers first; onFound runs as they come. */

@@ -164,6 +164,9 @@
     <string name="set_led_bar_from">Μπάρα στροφών: αρχίζει από</string>
     <string name="set_led_pixels">Μπάρα στροφών: LED</string>
     <string name="set_led_sweep">Μπάρα στροφών: δοκιμή</string>
+    <string name="set_led_reconnect">Επανασύνδεση φώτων</string>
+    <string name="led_report_writes">Στάλθηκαν: %1$d, απέτυχαν: %2$d</string>
+    <string name="led_report_no_long">οι μεγάλες αποστολές απέτυχαν, ένα πακέτο τη φορά</string>
     <string name="set_led_probe">Μπάρα στροφών: εύρεση βημάτων</string>
     <string name="led_probe_at">Ανάβει λευκό το βήμα %1$d από %2$d. Πού είναι στο ταμπλό;</string>
     <string name="led_probe_done">Τέλος</string>
@@ -204,6 +207,7 @@
         <item>Αυτόματα</item>
         <item>Α (E1, νεότερα)</item>
         <item>Β (59, παλαιότερα)</item>
+        <item>Γ (E1 σε κομμάτια, δοκιμαστικό)</item>
     </string-array>
     <string name="led_race_note">Η μπάρα ακολουθεί τις στροφές: πράσινο, κόκκινο, μωβ</string>
     <string name="led_status_no_mic">χρειάζεται άδεια μικροφώνου</string>

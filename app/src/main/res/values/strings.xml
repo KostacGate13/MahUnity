@@ -166,6 +166,9 @@
     <string name="set_led_bar_from">Rev bar: starts at</string>
     <string name="set_led_pixels">Rev bar: LEDs</string>
     <string name="set_led_sweep">Rev bar: try it</string>
+    <string name="set_led_reconnect">Reconnect the lights</string>
+    <string name="led_report_writes">Sent: %1$d, failed: %2$d</string>
+    <string name="led_report_no_long">long writes failed, one packet at a time</string>
     <string name="set_led_probe">Rev bar: find the steps</string>
     <string name="led_probe_at">Step %1$d of %2$d is lit white. Where is it on the dashboard?</string>
     <string name="led_probe_done">Done</string>
@@ -206,6 +209,7 @@
         <item>Automatic</item>
         <item>A (E1, newer)</item>
         <item>B (59, older)</item>
+        <item>C (E1 in parts, a trial)</item>
     </string-array>
     <string name="led_race_note">The bar follows the revs: green, red, purple</string>
     <string name="led_status_no_mic">needs microphone permission</string>

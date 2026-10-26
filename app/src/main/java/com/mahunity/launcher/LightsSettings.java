@@ -181,6 +181,12 @@ final class LightsSettings {
                         .setPositiveButton(android.R.string.ok, null).show();
             }
         });
+        rows.add(R.string.set_led_reconnect, new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                LightsSettings.this.leds.reconnect();
+                refresh();
+            }
+        });
         rows.add(R.string.set_led_help, new View.OnClickListener() {
             @Override public void onClick(View v) {
                 new AlertDialog.Builder(activity).setTitle(R.string.set_led_help).setMessage(R.string.led_help)
@@ -279,6 +285,10 @@ final class LightsSettings {
             }
             if (s.state == LedStrips.READY) {
                 b.append("\n").append(activity.getString(R.string.led_report_link, s.mtu, leds.room(role)));
+            }
+            if (s.address != null) {
+                b.append("\n").append(activity.getString(R.string.led_report_writes, s.writesOk, s.writesFailed));
+                if (s.noLong) b.append(" · ").append(activity.getString(R.string.led_report_no_long));
             }
             if (s.state == LedStrips.READY && s.protocol.addressable()) {
                 int n = role == LedStrips.TOP ? ambient.pixels() : s.pixels;
