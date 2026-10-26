@@ -806,6 +806,11 @@ public final class HomeActivity extends Activity
         showHeader();
     }
 
+    @Override public void onLightShape() {
+        ambient.barShape = ambient.barShape == Ambient.WHOLE ? Ambient.LEFT_TO_RIGHT : Ambient.WHOLE;
+        ambient.save();
+    }
+
     @Override public void onLightFuel() {
         ambient.bottomFuel = !ambient.bottomFuel;
         ambient.save();

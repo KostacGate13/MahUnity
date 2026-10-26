@@ -89,6 +89,10 @@ final class Ambient implements Sound.Listener {
     private int samples;
     private long brakeUntil, sweepFrom;
     private float level, bass;
+    /** The rev bar as shown, gliding to the revs between the car's reports; when it last moved. */
+    private float glide = -1;
+    private long glidAt;
+    private static final long GLIDE_MS = 140;
     private boolean framing;
     /** What the strips show now, before dimming: for the tab. */
     int shownTop, shownBottom;
@@ -122,7 +126,8 @@ final class Ambient implements Sound.Listener {
         barFrom = prefs.getInt("led_bar_from", 800);
         topPixels = prefs.getInt("led_top_pixels", 0);
         topMethod = prefs.getInt("led_top_method", LedProtocol.AUTO);
-        barShape = prefs.getInt("led_bar_shape", LEFT_TO_RIGHT);
+        // One colour for all of it unless the bar is asked for: lit LED by LED, the controller lagged and hung.
+        barShape = prefs.getInt("led_bar_shape2", WHOLE);
         topFlip = prefs.getInt("led_top_flip", 0);
         topSplit = prefs.getInt("led_top_split", 0);
         chase = prefs.getInt("led_chase", 0);
@@ -143,7 +148,7 @@ final class Ambient implements Sound.Listener {
                 .putInt("led_bottom_color", bottomColor).putInt("led_bottom_color2", bottomColor2)
                 .putInt("led_brightness", brightness).putInt("led_redline", redline).putFloat("led_brake", brake)
                 .putInt("led_bar_from", barFrom).putInt("led_top_pixels", topPixels).putInt("led_top_method", topMethod)
-                .putInt("led_bar_shape", barShape).putInt("led_top_flip", topFlip).putInt("led_top_split", topSplit)
+                .putInt("led_bar_shape2", barShape).putInt("led_top_flip", topFlip).putInt("led_top_split", topSplit)
                 .putInt("led_chase", chase).putInt("led_music_sense", musicSense)
                 .putInt("led_music_source", musicSource).putBoolean("led_bottom_fuel", bottomFuel).apply();
         leds.method(LedStrips.TOP, topMethod);
@@ -264,6 +269,7 @@ final class Ambient implements Sound.Listener {
         // As many steps as the strip takes in one write; PREVIEW of them on the tab while that is not known.
         int n = pixels(), steps = n > 0 ? leds.fit(LedStrips.TOP, n) : 0, count = steps > 0 ? steps : n > 0 ? n : PREVIEW;
         int top, bottom;
+        boolean gliding = false;
         topBar = null;
         switch (mode) {
             case RACE:
@@ -271,7 +277,6 @@ final class Ambient implements Sound.Listener {
                 bottom = braking ? (flash ? RED : OFF) : bottomColor;
                 break;
             case MUSIC:
-                topBar = meter(count, level, topColor, topColor2);
                 top = scale(mix(topColor, topColor2, level), 0.15f + 0.85f * level);
                 bottom = scale(mix(bottomColor, bottomColor2, bass), 0.12f + 0.88f * bass);
                 break;
@@ -281,7 +286,6 @@ final class Ambient implements Sound.Listener {
                 break;
             default:
                 float phase = now % CHASE_MS[clamp(chase)] / (float) CHASE_MS[clamp(chase)];
-                topBar = chase(count, phase, topColor, topColor2);
                 top = mix(topColor, topColor2, wave(phase));
                 bottom = mix(bottomColor, bottomColor2, wave(phase));
                 break;
@@ -289,8 +293,16 @@ final class Ambient implements Sound.Listener {
         if (fuelShows()) bottom = fuel(litres);
         // The rev bar: its colours by place, lit up to the revs; all of it flashing at the redline.
         if ((mode == RACE || trial) && revs >= 0) {
-            float f = fill(revs), least = 1f / 20;
+            // Gliding there rather than jumping with each report; in twenty steps for the colour, as the bar has
+            // them: one changing with every rpm would flood the controller.
+            float target = fill(revs);
+            glide = glide < 0 || trial ? target : glide + (target - glide) * Math.min(1f, (now - glidAt) / (float) GLIDE_MS);
+            glidAt = now;
+            if (Math.abs(target - glide) < 0.005f) glide = target;
+            gliding = glide != target;
+            float f = Math.round(glide * 20) / 20f, least = 1f / 20;
             float lit = shifting ? (flash ? 1.01f : 0f) : Math.max(least, f);
+            if (!shifting) lit = Math.max(least, glide);
             topBar = barShape == WHOLE ? null : barShape == EDGES ? edges(count, split(count), lit) : bar(count, lit);
             top = shifting ? (flash ? barColor(1f) : OFF) : barColor(f);
         }
@@ -299,7 +311,9 @@ final class Ambient implements Sound.Listener {
         // Laid out along the dashboard for the tab; in the strip's own order for the strip. A strip that lights its
         // steps one by one takes a single colour as one for every step too: on IOTBT ones a plain colour may not
         // reach all their segments.
-        int[] each = steps <= 0 ? null : topBar != null ? fitted(topBar) : uniform(steps, top);
+        // LED by LED only for the rev bar when its shape asks for it; everything else in the plain colour, which the
+        // controller follows smoothly.
+        int[] each = steps > 0 && topBar != null ? fitted(topBar) : null;
         if (probe >= 0 && steps > 0) {
             each = new int[steps];
             each[probe % steps] = 0xFFFFFF;
@@ -308,7 +322,7 @@ final class Ambient implements Sound.Listener {
         leds.set(LedStrips.BOTTOM, bottomOn, dim(bottom));
         listener.onAmbientChanged();
         boolean moving = trial || mode == NORMAL && (topOn || bottomOn)
-                || mode == RACE && (shifting && topOn || braking && bottomOn);
+                || mode == RACE && (shifting && topOn || braking && bottomOn || gliding && topOn);
         if (moving && !framing) {
             framing = true;
             handler.postDelayed(frame, FRAME_MS);
@@ -386,11 +400,6 @@ final class Ambient implements Sound.Listener {
         return out;
     }
 
-    private static int[] uniform(int count, int rgb) {
-        int[] out = new int[count];
-        java.util.Arrays.fill(out, rgb);
-        return out;
-    }
 
     /** The rev bar's colour at t along it: green at the left, yellow, red at RED_AT, then magenta to purple. */
     static int barColor(float t) {
@@ -399,24 +408,9 @@ final class Ambient implements Sound.Listener {
         return Color.HSVToColor(new float[] {hue % 360f, 1f, 1f}) & 0xFFFFFF;
     }
 
-    /** Normal along a strip: a wave from one colour to the other and back, moved right by phase (0 to 1). */
-    static int[] chase(int count, float phase, int a, int b) {
-        int[] out = new int[count];
-        for (int i = 0; i < count; i++) out[i] = mix(a, b, wave(i / (float) count - phase));
-        return out;
-    }
-
     /** 0 to 1 and back over each whole turn of t, smoothly. */
     private static float wave(float t) {
         return (float) (1 - Math.cos(2 * Math.PI * t)) / 2;
-    }
-
-    /** Music along a strip: lit from the left as far as the level, from one colour to the other. */
-    static int[] meter(int count, float level, int a, int b) {
-        int[] out = new int[count];
-        int lit = Math.round(Math.max(0f, Math.min(1f, level)) * count);
-        for (int i = 0; i < lit; i++) out[i] = mix(a, b, count == 1 ? 1f : i / (float) (count - 1));
-        return out;
     }
 
     private int dim(int rgb) {

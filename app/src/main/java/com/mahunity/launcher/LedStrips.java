@@ -53,6 +53,8 @@ final class LedStrips {
     /** A connection not made in this long is given up and tried again; this many writes failing in a row, too. */
     private static final long CONNECT_MS = 20_000;
     private static final int FAILS = 12, LONG_FAILS = 2;
+    /** No closer than this between commands to one strip: a controller fed faster falls behind and hangs. */
+    private static final long GAP_MS = 100;
     private static final long RETRY_MS = 6_000, WRITE_TIMEOUT_MS = 400, SCAN_MS = 12_000, SETUP_MS = 3_000,
             ASK_MS = 2_500;
     /** The most a write can carry when the controller takes long writes. */
@@ -96,6 +98,15 @@ final class LedStrips {
         private long connectingSince;
         /** The rest of a command sent in parts, sent before anything new. */
         private final ArrayDeque<byte[]> queue = new ArrayDeque<>();
+        private long lastWrite;
+        private boolean waiting;
+        /** The next command once GAP_MS has passed since the last. */
+        private final Runnable later = new Runnable() {
+            @Override public void run() {
+                waiting = false;
+                pump(Strip.this);
+            }
+        };
         /** Its own watch on an unanswered write: one strip writing often must not put off the other's. */
         private final Runnable unstick = new Runnable() {
             @Override public void run() {
@@ -317,6 +328,8 @@ final class LedStrips {
         s.longInFlight = false;
         s.queue.clear();
         main.removeCallbacks(s.unstick);
+        main.removeCallbacks(s.later);
+        s.waiting = false;
     }
 
     private BluetoothGattCallback callback(final Strip s) {
@@ -527,7 +540,17 @@ final class LedStrips {
     private void pump(final Strip s) {
         if (s.state != READY || s.busy || s.channel == null) return;
         if (!s.queue.isEmpty()) {
+            // The rest of a command in parts goes straight after its start.
             write(s, s.queue.poll());
+            return;
+        }
+        long since = SystemClock.elapsedRealtime() - s.lastWrite;
+        if (since < GAP_MS) {
+            // Too soon: once the gap is up, with whatever is wanted by then.
+            if (!s.waiting) {
+                s.waiting = true;
+                main.postDelayed(s.later, GAP_MS - since);
+            }
             return;
         }
         byte[] command = null;
@@ -602,6 +625,7 @@ final class LedStrips {
             if (s.state != READY) return;
         }
         s.busy = true;
+        s.lastWrite = SystemClock.elapsedRealtime();
         // A long write takes several packets, each answered: more time for it.
         long wait = WRITE_TIMEOUT_MS * (s.longInFlight ? 4 : 1);
         s.busyUntil = SystemClock.elapsedRealtime() + wait;

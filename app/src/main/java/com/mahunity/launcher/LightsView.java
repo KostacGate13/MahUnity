@@ -29,6 +29,9 @@ final class LightsView extends View {
         /** The footwells' fuel button: the fuel instead of their colours, or back. */
         void onLightFuel();
 
+        /** The dashboard's rev bar: one colour, or LED by LED left to right. */
+        void onLightShape();
+
         void onLightMode(int mode);
 
         void onLightSettings();
@@ -48,12 +51,12 @@ final class LightsView extends View {
     private final RectF[] cards = {new RectF(), new RectF()}, switches = {new RectF(), new RectF()},
             bars = {new RectF(), new RectF()};
     private final RectF[] modes = new RectF[4];
-    private final RectF more = new RectF(), fuelButton = new RectF();
+    private final RectF more = new RectF(), fuelButton = new RectF(), shapeChip = new RectF();
     private final float[][] swatchX = new float[2][Ambient.COLORS.length];
     private final float[] swatchY = new float[2];
     private final RectF[][] slots = {{new RectF(), new RectF()}, {new RectF(), new RectF()}};
     private final String[] names, modeNames;
-    private final String moreText, raceNote;
+    private final String moreText, raceWhole, raceBar;
     private final String[] status = {"", ""};
     private final boolean[] on = new boolean[2];
     private final int[] chosen = new int[2], chosen2 = new int[2], shown = new int[2], slot = new int[2];
@@ -63,6 +66,8 @@ final class LightsView extends View {
     private boolean pair, topColours = true;
     /** Whether the footwells' fuel button shows (Normal and Static), and whether it is on. */
     private boolean fuelMode, fuelOn;
+    /** Race: whether the dashboard's rev bar is one colour (or LED by LED). */
+    private boolean wholeBar = true;
     private float radius, pad, swatchR, cardH;
     private Listener listener;
     private Shader cardFill, cardFrame;
@@ -73,7 +78,8 @@ final class LightsView extends View {
         modeNames = new String[Ambient.MODE_NAMES.length];
         for (int i = 0; i < modeNames.length; i++) modeNames[i] = context.getString(Ambient.MODE_NAMES[i]);
         moreText = context.getString(R.string.led_settings) + "  ›";
-        raceNote = context.getString(R.string.led_race_note);
+        raceWhole = context.getString(R.string.led_race_whole);
+        raceBar = context.getString(R.string.led_race_bar);
         for (int i = 0; i < modes.length; i++) modes[i] = new RectF();
         frame.setStyle(Paint.Style.STROKE);
         ring.setStyle(Paint.Style.STROKE);
@@ -108,6 +114,7 @@ final class LightsView extends View {
         boolean two = a.mode == Ambient.NORMAL || a.mode == Ambient.MUSIC;
         topColours = a.mode != Ambient.RACE;
         fuelOn = a.bottomFuel;
+        wholeBar = a.barShape == Ambient.WHOLE;
         if (two != pair || a.mode != mode || a.fuelMode() != fuelMode) {
             mode = a.mode;
             pair = two;
@@ -196,7 +203,18 @@ final class LightsView extends View {
             if (i == 0 && revBar != null && on[0]) drawLeds(c, bars[0], revBar);
             else drawBar(c, bars[i], on[i] ? shown[i] : 0);
             if (i == 0 && !topColours) {
-                c.drawText(fit(raceNote, note, r.width() - 2 * pad), r.left + pad, swatchY[i] + note.getTextSize() * 0.36f, note);
+                String t = fit(wholeBar ? raceWhole : raceBar, note, r.width() - 4 * pad);
+                float h = note.getTextSize() * 2.1f, cw = note.measureText(t) + 2 * pad;
+                shapeChip.set(r.left + pad, swatchY[i] - h / 2, r.left + pad + cw, swatchY[i] + h / 2);
+                fill.setShader(null);
+                fill.setColor(wholeBar ? 0x14FFFFFF : Chrome.withAlpha(Chrome.accent, 0x40));
+                c.drawRoundRect(shapeChip, h / 2, h / 2, fill);
+                frame.setShader(null);
+                frame.setColor(wholeBar ? 0x40FFFFFF : Chrome.accent);
+                c.drawRoundRect(shapeChip, h / 2, h / 2, frame);
+                note.setColor(Chrome.TEXT);
+                c.drawText(t, shapeChip.left + pad, shapeChip.centerY() + note.getTextSize() * 0.36f, note);
+                note.setColor(Chrome.TEXT_DIM);
                 continue;
             }
             int current = pair && slot[i] == 1 ? chosen2[i] : chosen[i];
@@ -360,7 +378,13 @@ final class LightsView extends View {
                 listener.onLightSwitch(i);
                 return true;
             }
-            if (i == 0 && !topColours) continue;
+            if (i == 0 && !topColours) {
+                if (shapeChip.contains(x, y)) {
+                    listener.onLightShape();
+                    return true;
+                }
+                continue;
+            }
             if (i == 1 && fuelMode) {
                 RectF fb = new RectF(fuelButton);
                 fb.inset(-pad * 0.4f, -pad * 0.4f);
