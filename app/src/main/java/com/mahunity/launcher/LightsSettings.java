@@ -161,6 +161,11 @@ final class LightsSettings {
                 ambient.sweep();
             }
         });
+        rows.add(R.string.set_led_probe, new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                probe();
+            }
+        });
         rowBrake = rows.add(R.string.set_led_brake, new View.OnClickListener() {
             @Override public void onClick(View v) {
                 pick(R.string.set_led_brake, R.array.led_brakes, brakeIndex(), new Choice() {
@@ -417,6 +422,46 @@ final class LightsSettings {
                         changed();
                     }
                 }).setNegativeButton(android.R.string.cancel, null).show();
+    }
+
+    /**
+     * Finding the steps: one lit white at a time, the rest off, moved with the dialog's buttons, to see on the
+     * dashboard where each falls (and so how many there are, and where the right-hand part starts).
+     */
+    private void probe() {
+        final int steps = ambient.steps();
+        if (steps <= 0) {
+            new AlertDialog.Builder(activity).setTitle(R.string.set_led_probe).setMessage(R.string.led_probe_none)
+                    .setPositiveButton(android.R.string.ok, null).show();
+            return;
+        }
+        ambient.probe = 0;
+        ambient.apply();
+        final AlertDialog d = new AlertDialog.Builder(activity).setTitle(R.string.set_led_probe)
+                .setMessage(activity.getString(R.string.led_probe_at, 1, steps))
+                .setNegativeButton("‹", null).setPositiveButton("›", null).setNeutralButton(R.string.led_probe_done, null)
+                .create();
+        d.setOnShowListener(new DialogInterface.OnShowListener() {
+            @Override public void onShow(DialogInterface di) {
+                View.OnClickListener move = new View.OnClickListener() {
+                    @Override public void onClick(View v) {
+                        int by = v == d.getButton(AlertDialog.BUTTON_POSITIVE) ? 1 : -1;
+                        ambient.probe = (ambient.probe + by + steps) % steps;
+                        ambient.apply();
+                        d.setMessage(activity.getString(R.string.led_probe_at, ambient.probe + 1, steps));
+                    }
+                };
+                d.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(move);
+                d.getButton(AlertDialog.BUTTON_NEGATIVE).setOnClickListener(move);
+            }
+        });
+        d.setOnDismissListener(new DialogInterface.OnDismissListener() {
+            @Override public void onDismiss(DialogInterface di) {
+                ambient.probe = -1;
+                ambient.apply();
+            }
+        });
+        d.show();
     }
 
     private void pickBrightness() {

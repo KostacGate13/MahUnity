@@ -166,6 +166,10 @@
     <string name="set_led_bar_from">Rev bar: starts at</string>
     <string name="set_led_pixels">Rev bar: LEDs</string>
     <string name="set_led_sweep">Rev bar: try it</string>
+    <string name="set_led_probe">Rev bar: find the steps</string>
+    <string name="led_probe_at">Step %1$d of %2$d is lit white. Where is it on the dashboard?</string>
+    <string name="led_probe_done">Done</string>
+    <string name="led_probe_none">The dashboard does not light its LEDs one by one yet: connect it and set Rev bar: LEDs.</string>
     <string name="set_led_bar_shape">Rev bar: shape</string>
     <string-array name="led_bar_shapes">
         <item>Left to right</item>

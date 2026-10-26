@@ -74,6 +74,8 @@ final class Ambient implements Sound.Listener {
     int topPixels, topMethod;
     /** The rev bar's shape; whether the dashboard's right-hand part is fitted reversed, and the step it starts at (0: half way). */
     int barShape, topFlip, topSplit;
+    /** Finding the steps: the one step lit, in the strip's own order, the rest off; -1 when not finding. */
+    int probe = -1;
     /** Normal's speed and Music's sensitivity, 0 to 2 each; where Music listens, Sound.OUTPUT or MIC. */
     int chase, musicSense, musicSource;
     /** In Normal and Static, the footwells show the fuel instead of their colours. */
@@ -239,6 +241,12 @@ final class Ambient implements Sound.Listener {
         apply();
     }
 
+    /** How many steps the dashboard takes now, one write each; 0 if it cannot light them one by one. */
+    int steps() {
+        int n = pixels();
+        return n > 0 ? leds.fit(LedStrips.TOP, n) : 0;
+    }
+
     /** The dashboard's LEDs: as set by hand, or as its controller says; 0 if neither. */
     int pixels() {
         return topPixels > 0 ? topPixels : leds.pixels(LedStrips.TOP);
@@ -292,7 +300,11 @@ final class Ambient implements Sound.Listener {
         // steps one by one takes a single colour as one for every step too: on IOTBT ones a plain colour may not
         // reach all their segments.
         int[] each = steps <= 0 ? null : topBar != null ? fitted(topBar) : uniform(steps, top);
-        leds.set(LedStrips.TOP, topOn || trial, dim(top), each == null ? null : dim(each));
+        if (probe >= 0 && steps > 0) {
+            each = new int[steps];
+            each[probe % steps] = 0xFFFFFF;
+        }
+        leds.set(LedStrips.TOP, topOn || trial || probe >= 0, dim(top), each == null ? null : dim(each));
         leds.set(LedStrips.BOTTOM, bottomOn, dim(bottom));
         listener.onAmbientChanged();
         boolean moving = trial || mode == NORMAL && (topOn || bottomOn)
