@@ -800,8 +800,15 @@ public final class HomeActivity extends Activity
         } else {
             ambient.bottomColor = color;
         }
+        // A colour for the footwells means their own colours again, not the fuel.
+        if (role == LedStrips.BOTTOM) ambient.bottomFuel = false;
         ambient.save();
         showHeader();
+    }
+
+    @Override public void onLightFuel() {
+        ambient.bottomFuel = !ambient.bottomFuel;
+        ambient.save();
     }
 
     @Override public void onLightMode(int mode) {
@@ -962,7 +969,7 @@ public final class HomeActivity extends Activity
         showDoors();
         // The lights follow the car whatever is in front.
         float kmh = currentSpeed();
-        ambient.update(can.rpm, kmh < 0 ? -1 : Math.round(kmh));
+        ambient.update(can.rpm, kmh < 0 ? -1 : Math.round(kmh), can.fuel);
         if (!resumed) return;
         top.setOutside(can.outside);
         float tank = tank();

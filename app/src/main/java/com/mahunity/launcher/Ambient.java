@@ -22,6 +22,8 @@ import android.os.SystemClock;
  * second; the footwells pulse with the bass, which takes a harder hit to show.</li>
  * <li>Static: each strip in its first colour.</li>
  * </ul>
+ * In Normal and Static the footwells can show the fuel instead: red up to 5 litres, blue to 15, purple to 29,
+ * green above.
  * Settings are kept in the preferences; what the strips show is kept for the Lights tab to draw.
  */
 final class Ambient implements Sound.Listener {
@@ -40,6 +42,9 @@ final class Ambient implements Sound.Listener {
     static final long[] CHASE_MS = {9_000, 5_000, 2_500};
     /** Music, at low, medium and high sensitivity: the gain on the loudness, and how hard the bass must hit. */
     private static final float[] MUSIC_GAIN = {0.8f, 1f, 1.3f}, BASS_GATE = {0.6f, 0.45f, 0.3f};
+    /** The footwells by the fuel: the colour up to each mark in whole litres, then the last one above them. */
+    private static final int[] FUEL_MARKS = {5, 15, 29};
+    static final int[] FUEL_COLORS = {RED, 0x0050FF, 0x8A2BFF, 0x00FF2A};
     private static final long FRAME_MS = 60, FLASH_MS = 120, BRAKE_HOLD_MS = 900, WINDOW_MS = 900;
     /** A trial of the rev bar: up to the redline over the first part, then the shift light. */
     private static final long SWEEP_UP_MS = 3_000, SWEEP_MS = 4_400;
@@ -67,8 +72,11 @@ final class Ambient implements Sound.Listener {
     int topPixels, topMethod;
     /** Normal's speed and Music's sensitivity, 0 to 2 each; where Music listens, Sound.OUTPUT or MIC. */
     int chase, musicSense, musicSource;
+    /** In Normal and Static, the footwells show the fuel instead of their colours. */
+    boolean bottomFuel;
 
     private int rpm = -1, speed = -1;
+    private float litres = -1;
     /** Recent speeds, as (time, km/h), oldest first. */
     private final long[] times = new long[16];
     private final int[] speeds = new int[16];
@@ -111,6 +119,7 @@ final class Ambient implements Sound.Listener {
         chase = prefs.getInt("led_chase", 0);
         musicSense = prefs.getInt("led_music_sense", 1);
         musicSource = prefs.getInt("led_music_source", Sound.OUTPUT);
+        bottomFuel = prefs.getBoolean("led_bottom_fuel", false);
         for (int role = 0; role < 2; role++) {
             String key = role == LedStrips.TOP ? "led_top" : "led_bottom";
             leds.use(role, prefs.getString(key + "_address", null), prefs.getString(key + "_name", null),
@@ -126,7 +135,7 @@ final class Ambient implements Sound.Listener {
                 .putInt("led_brightness", brightness).putInt("led_redline", redline).putFloat("led_brake", brake)
                 .putInt("led_bar_from", barFrom).putInt("led_top_pixels", topPixels).putInt("led_top_method", topMethod)
                 .putInt("led_chase", chase).putInt("led_music_sense", musicSense)
-                .putInt("led_music_source", musicSource).apply();
+                .putInt("led_music_source", musicSource).putBoolean("led_bottom_fuel", bottomFuel).apply();
         leds.method(LedStrips.TOP, topMethod);
         listen();
         apply();
@@ -162,9 +171,10 @@ final class Ambient implements Sound.Listener {
         sound.stop();
     }
 
-    /** The car's latest: rpm and km/h, below zero unknown. */
-    void update(int rpm, int kmh) {
+    /** The car's latest: rpm, km/h and litres in the tank, below zero unknown. */
+    void update(int rpm, int kmh, float litres) {
         this.rpm = rpm;
+        this.litres = litres;
         if (kmh != speed) {
             speed = kmh;
             sample(kmh);
@@ -259,6 +269,7 @@ final class Ambient implements Sound.Listener {
                 bottom = mix(bottomColor, bottomColor2, wave(phase));
                 break;
         }
+        if (fuelShows()) bottom = fuel(litres);
         // The rev bar: its colours by place, lit up to the revs; all of it flashing at the redline.
         if ((mode == RACE || trial) && revs >= 0) {
             float f = fill(revs);
@@ -277,6 +288,28 @@ final class Ambient implements Sound.Listener {
             framing = true;
             handler.postDelayed(frame, FRAME_MS);
         }
+    }
+
+    /** Whether the mode can show the fuel on the footwells (Normal and Static). */
+    boolean fuelMode() {
+        return mode == NORMAL || mode == STATIC;
+    }
+
+    /** Whether the footwells show the fuel now: chosen, in such a mode, and the car says how much there is. */
+    boolean fuelShows() {
+        return bottomFuel && fuelMode() && litres >= 0;
+    }
+
+    /** The litres in the tank as the car last said, below zero unknown. */
+    float litres() {
+        return litres;
+    }
+
+    /** The footwells' colour for the litres in the tank. */
+    static int fuel(float litres) {
+        int l = Math.round(litres), i = 0;
+        while (i < FUEL_MARKS.length && l > FUEL_MARKS[i]) i++;
+        return FUEL_COLORS[i];
     }
 
     /** The revs in a trial: from the bar's start to just under the redline, then on it. */

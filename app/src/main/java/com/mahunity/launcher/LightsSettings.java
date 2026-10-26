@@ -203,9 +203,16 @@ final class LightsSettings {
         return s.address == null ? activity.getString(R.string.led_choose) : s.name != null ? s.name : s.address;
     }
 
-    /** A strip's connection in a few words, for the tab and the sheet; in Music, also whether it hears. */
+    /**
+     * A strip's connection in a few words, for the tab and the sheet; in Music, also whether it hears; for the
+     * footwells showing the fuel, the litres.
+     */
     String status(int role) {
         String link = link(role);
+        if (role == LedStrips.BOTTOM && ambient.bottomFuel && ambient.fuelMode() && leds.strips[role].address != null) {
+            return link + " · " + (ambient.fuelShows() ? Math.round(ambient.litres()) + " L"
+                    : activity.getString(R.string.led_status_no_fuel));
+        }
         if (ambient.mode != Ambient.MUSIC || leds.strips[role].address == null) return link;
         if (!ambient.mayListen()) return link + " · " + activity.getString(R.string.led_status_no_mic);
         if (!ambient.hearing()) return link + " · " + activity.getString(R.string.led_status_no_sound);

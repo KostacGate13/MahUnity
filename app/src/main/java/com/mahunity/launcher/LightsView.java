@@ -4,6 +4,7 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.LinearGradient;
 import android.graphics.Paint;
+import android.graphics.Path;
 import android.graphics.RectF;
 import android.graphics.Shader;
 import android.text.TextPaint;
@@ -14,8 +15,9 @@ import android.view.View;
 /**
  * The Lights tab: a card for each LED strip (the dashboard, the footwells) with its switch, a bar glowing as it
  * shows right now (the dashboard LED by LED where it moves) and the colours to choose from, two of them in the
- * modes that take two (a slot for each, then the colours for the slot chosen); under them the four modes, and
- * the way to the rest of the settings.
+ * modes that take two (a slot for each, then the colours for the slot chosen), and for the footwells in Normal
+ * and Static a fuel button, to show the fuel instead; under them the four modes, and the way to the rest of the
+ * settings.
  */
 final class LightsView extends View {
     interface Listener {
@@ -23,6 +25,9 @@ final class LightsView extends View {
 
         /** A colour chosen for a strip's first (slot 0) or second colour. */
         void onLightColor(int role, int slot, int color);
+
+        /** The footwells' fuel button: the fuel instead of their colours, or back. */
+        void onLightFuel();
 
         void onLightMode(int mode);
 
@@ -35,13 +40,15 @@ final class LightsView extends View {
     private final Paint ring = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint knob = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint glow = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint line = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Path pump = new Path();
     private final TextPaint title = new TextPaint(Paint.ANTI_ALIAS_FLAG);
     private final TextPaint note = new TextPaint(Paint.ANTI_ALIAS_FLAG);
     private final TextPaint chip = new TextPaint(Paint.ANTI_ALIAS_FLAG);
     private final RectF[] cards = {new RectF(), new RectF()}, switches = {new RectF(), new RectF()},
             bars = {new RectF(), new RectF()};
     private final RectF[] modes = new RectF[4];
-    private final RectF more = new RectF();
+    private final RectF more = new RectF(), fuelButton = new RectF();
     private final float[][] swatchX = new float[2][Ambient.COLORS.length];
     private final float[] swatchY = new float[2];
     private final RectF[][] slots = {{new RectF(), new RectF()}, {new RectF(), new RectF()}};
@@ -54,6 +61,8 @@ final class LightsView extends View {
     private int mode;
     /** Whether the mode takes two colours; whether the dashboard's are its own (not in Race). */
     private boolean pair, topColours = true;
+    /** Whether the footwells' fuel button shows (Normal and Static), and whether it is on. */
+    private boolean fuelMode, fuelOn;
     private float radius, pad, swatchR, cardH;
     private Listener listener;
     private Shader cardFill, cardFrame;
@@ -68,6 +77,9 @@ final class LightsView extends View {
         for (int i = 0; i < modes.length; i++) modes[i] = new RectF();
         frame.setStyle(Paint.Style.STROKE);
         ring.setStyle(Paint.Style.STROKE);
+        line.setStyle(Paint.Style.STROKE);
+        line.setStrokeCap(Paint.Cap.ROUND);
+        line.setStrokeJoin(Paint.Join.ROUND);
         title.setTypeface(Chrome.MEDIUM);
         title.setColor(Chrome.TEXT);
         note.setTypeface(Chrome.REGULAR);
@@ -95,9 +107,11 @@ final class LightsView extends View {
         status[1] = bottomStatus;
         boolean two = a.mode == Ambient.NORMAL || a.mode == Ambient.MUSIC;
         topColours = a.mode != Ambient.RACE;
-        if (two != pair || a.mode != mode) {
+        fuelOn = a.bottomFuel;
+        if (two != pair || a.mode != mode || a.fuelMode() != fuelMode) {
             mode = a.mode;
             pair = two;
+            fuelMode = a.fuelMode();
             if (!pair) slot[0] = slot[1] = 0;
             place();
         }
@@ -137,14 +151,17 @@ final class LightsView extends View {
         cardFrame = Chrome.edge(0, 0, w, cardH);
     }
 
-    /** The colours along each card's foot: with two slots first where the mode takes two colours. */
+    /**
+     * The colours along each card's foot: with two slots first where the mode takes two colours, and room at the
+     * end for the footwells' fuel button where it shows (kept on both cards, so their colours line up).
+     */
     private void place() {
         if (cardH <= 0) return;
         int n = Ambient.COLORS.length;
-        float lead = pair ? 2.8f : 0f;
+        float lead = pair ? 2.8f : 0f, tail = fuelMode ? 1.6f : 0f;
         for (int i = 0; i < 2; i++) {
             RectF c = cards[i];
-            float left = c.left + pad, cell = (c.width() - 2 * pad) / (n + lead);
+            float left = c.left + pad, cell = (c.width() - 2 * pad) / (n + lead + tail);
             swatchR = Math.min(cell * 0.36f, cardH * 0.13f);
             swatchY[i] = c.bottom - pad - swatchR;
             float half = swatchR * 1.15f;
@@ -153,6 +170,10 @@ final class LightsView extends View {
                 slots[i][k].set(x - half, swatchY[i] - half, x + half, swatchY[i] + half);
             }
             for (int k = 0; k < n; k++) swatchX[i][k] = left + cell * (lead + k + 0.5f);
+            if (i == 1) {
+                float x = c.right - pad - cell * 0.75f;
+                fuelButton.set(x - half, swatchY[i] - half, x + half, swatchY[i] + half);
+            }
         }
     }
 
@@ -179,15 +200,18 @@ final class LightsView extends View {
                 continue;
             }
             int current = pair && slot[i] == 1 ? chosen2[i] : chosen[i];
+            // The fuel in place of the footwells' colours: those dimmed, none marked.
+            boolean byFuel = i == 1 && fuelMode && fuelOn;
+            int opaque = byFuel ? 0x50000000 : 0xFF000000;
             if (pair) {
                 for (int k = 0; k < 2; k++) {
                     RectF sr = slots[i][k];
                     float sr2 = sr.height() * 0.28f;
-                    swatch.setColor(0xFF000000 | (k == 0 ? chosen[i] : chosen2[i]));
+                    swatch.setColor(opaque | (k == 0 ? chosen[i] : chosen2[i]));
                     c.drawRoundRect(sr, sr2, sr2, swatch);
-                    chip.setColor(0xFF000000);
+                    chip.setColor(opaque);
                     c.drawText(k == 0 ? "1" : "2", sr.centerX(), sr.centerY() + chip.getTextSize() * 0.36f, chip);
-                    if (k == slot[i]) {
+                    if (k == slot[i] && !byFuel) {
                         ring.setColor(Chrome.TEXT);
                         RectF o = new RectF(sr);
                         o.inset(-ring.getStrokeWidth() * 1.6f, -ring.getStrokeWidth() * 1.6f);
@@ -201,13 +225,14 @@ final class LightsView extends View {
             }
             for (int k = 0; k < Ambient.COLORS.length; k++) {
                 int col = Ambient.COLORS[k];
-                swatch.setColor(0xFF000000 | col);
+                swatch.setColor(opaque | col);
                 c.drawCircle(swatchX[i][k], swatchY[i], swatchR, swatch);
-                if (col == current) {
+                if (col == current && !byFuel) {
                     ring.setColor(Chrome.TEXT);
                     c.drawCircle(swatchX[i][k], swatchY[i], swatchR + ring.getStrokeWidth() * 1.6f, ring);
                 }
             }
+            if (i == 1 && fuelMode) drawFuel(c);
         }
         for (int k = 0; k < 4; k++) {
             RectF r = modes[k];
@@ -259,6 +284,41 @@ final class LightsView extends View {
         glow.clearShadowLayer();
     }
 
+    /** The footwells' fuel button: a pump, lit in the accent when the fuel shows; a line before it. */
+    private void drawFuel(Canvas c) {
+        RectF b = fuelButton;
+        float r = b.width() / 2, cx = b.centerX(), cy = b.centerY();
+        frame.setShader(null);
+        frame.setColor(0x40FFFFFF);
+        float x = (swatchX[1][Ambient.COLORS.length - 1] + swatchR + b.left) / 2;
+        c.drawLine(x, cy - swatchR, x, cy + swatchR, frame);
+        fill.setShader(null);
+        fill.setColor(fuelOn ? Chrome.withAlpha(Chrome.accent, 0xD0) : 0x18FFFFFF);
+        c.drawCircle(cx, cy, r, fill);
+        if (fuelOn) {
+            ring.setColor(Chrome.TEXT);
+            c.drawCircle(cx, cy, r + ring.getStrokeWidth() * 1.6f, ring);
+        } else {
+            c.drawCircle(cx, cy, r, frame);
+        }
+        // The pump: its body with a window, a base, and the hose from its side to the nozzle.
+        float s = r * 1.65f, px = cx - s * 0.04f;
+        line.setColor(fuelOn ? Chrome.TEXT : Chrome.TEXT_DIM);
+        line.setStrokeWidth(Math.max(1.5f, s * 0.08f));
+        c.drawRoundRect(px - s * 0.27f, cy - s * 0.36f, px + s * 0.09f, cy + s * 0.34f, s * 0.05f, s * 0.05f, line);
+        c.drawLine(px - s * 0.36f, cy + s * 0.34f, px + s * 0.18f, cy + s * 0.34f, line);
+        c.drawLine(px - s * 0.19f, cy - s * 0.16f, px + s * 0.01f, cy - s * 0.16f, line);
+        pump.reset();
+        pump.moveTo(px + s * 0.09f, cy - s * 0.06f);
+        pump.lineTo(px + s * 0.2f, cy - s * 0.06f);
+        pump.lineTo(px + s * 0.2f, cy + s * 0.16f);
+        pump.quadTo(px + s * 0.2f, cy + s * 0.24f, px + s * 0.27f, cy + s * 0.24f);
+        pump.quadTo(px + s * 0.34f, cy + s * 0.24f, px + s * 0.34f, cy + s * 0.16f);
+        pump.lineTo(px + s * 0.34f, cy - s * 0.2f);
+        pump.lineTo(px + s * 0.25f, cy - s * 0.32f);
+        c.drawPath(pump, line);
+    }
+
     /** The text, cut short with an ellipsis where it is wider than w. */
     private static String fit(String text, TextPaint p, float w) {
         if (p.measureText(text) <= w) return text;
@@ -301,6 +361,14 @@ final class LightsView extends View {
                 return true;
             }
             if (i == 0 && !topColours) continue;
+            if (i == 1 && fuelMode) {
+                RectF fb = new RectF(fuelButton);
+                fb.inset(-pad * 0.4f, -pad * 0.4f);
+                if (fb.contains(x, y)) {
+                    listener.onLightFuel();
+                    return true;
+                }
+            }
             if (pair) {
                 for (int k = 0; k < 2; k++) {
                     RectF sr = new RectF(slots[i][k]);
