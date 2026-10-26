@@ -72,7 +72,7 @@ final class Ambient implements Sound.Listener {
     float brake;
     /** The dashboard's LEDs set by hand (0: as its controller says); how it lights them one by one. */
     int topPixels, topMethod;
-    /** The rev bar's shape; whether the dashboard's right-hand part is fitted reversed, and the step it starts at (0: half way). */
+    /** The rev bar's shape; whether the dashboard's right-hand part is fitted reversed; the LEDs before it (0: half). */
     int barShape, topFlip, topSplit;
     /** Finding the steps: the one step lit, in the strip's own order, the rest off; -1 when not finding. */
     int probe = -1;
@@ -372,7 +372,7 @@ final class Ambient implements Sound.Listener {
         return out;
     }
 
-    /** Where the dashboard's right-hand part starts, in steps. */
+    /** Where the dashboard's right-hand part starts: after the left-hand one's LEDs, or half way. */
     private int split(int count) {
         return topSplit > 0 ? Math.max(1, Math.min(topSplit, count - 1)) : count / 2;
     }

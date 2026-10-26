@@ -179,9 +179,9 @@
         <item>Όπως το αριστερό</item>
         <item>Τοποθετημένο ανάποδα</item>
     </string-array>
-    <string name="set_led_split">Ταμπλό: το δεξί κομμάτι αρχίζει στο βήμα</string>
-    <string name="led_split_half">στη μέση</string>
-    <string name="led_split_hint">0: στη μέση</string>
+    <string name="set_led_split">Ταμπλό: LED της αριστερής λωρίδας</string>
+    <string name="led_split_half">τα μισά</string>
+    <string name="led_split_hint">0: τα μισά</string>
     <string name="set_led_chase">Κανονικό: κίνηση</string>
     <string-array name="led_chases">
         <item>Αργή</item>

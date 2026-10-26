@@ -181,9 +181,9 @@
         <item>As the left</item>
         <item>Fitted reversed</item>
     </string-array>
-    <string name="set_led_split">Dashboard: right-hand part starts at step</string>
-    <string name="led_split_half">half way</string>
-    <string name="led_split_hint">0: half way</string>
+    <string name="set_led_split">Dashboard: LEDs in the left-hand strip</string>
+    <string name="led_split_half">half of them</string>
+    <string name="led_split_hint">0: half of them</string>
     <string name="set_led_chase">Normal: movement</string>
     <string-array name="led_chases">
         <item>Slow</item>
