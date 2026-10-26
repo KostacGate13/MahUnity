@@ -245,7 +245,8 @@ final class Ambient implements Sound.Listener {
         boolean shifting = revs >= redline && redline > 0;
         boolean braking = now < brakeUntil;
         boolean flash = now / FLASH_MS % 2 == 0;
-        int n = pixels(), count = n > 0 ? n : PREVIEW;
+        // As many steps as the strip takes in one write; PREVIEW of them on the tab while that is not known.
+        int n = pixels(), steps = n > 0 ? leds.fit(LedStrips.TOP, n) : 0, count = steps > 0 ? steps : n > 0 ? n : PREVIEW;
         int top, bottom;
         topBar = null;
         switch (mode) {
@@ -279,7 +280,7 @@ final class Ambient implements Sound.Listener {
         }
         shownTop = top;
         shownBottom = bottom;
-        leds.set(LedStrips.TOP, topOn || trial, dim(top), topBar != null && n > 0 ? dim(topBar) : null);
+        leds.set(LedStrips.TOP, topOn || trial, dim(top), topBar != null && steps > 0 ? dim(topBar) : null);
         leds.set(LedStrips.BOTTOM, bottomOn, dim(bottom));
         listener.onAmbientChanged();
         boolean moving = trial || mode == NORMAL && (topOn || bottomOn)

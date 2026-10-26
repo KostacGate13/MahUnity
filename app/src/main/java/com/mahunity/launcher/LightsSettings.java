@@ -255,8 +255,10 @@ final class LightsSettings {
                         ? String.valueOf(s.pixels) : activity.getString(R.string.led_report_unsaid)));
                 if (role == LedStrips.TOP) {
                     b.append("\n").append(activity.getString(R.string.led_report_method, method()));
-                    b.append("\n").append(activity.getString(leds.lightsEach(role, n) ? R.string.led_report_each
-                            : n > 0 ? R.string.led_report_too_long : R.string.led_report_one));
+                    int steps = leds.fit(role, n);
+                    b.append("\n").append(steps >= n && n > 0 ? activity.getString(R.string.led_report_each)
+                            : steps > 0 ? activity.getString(R.string.led_report_steps, steps, n)
+                            : activity.getString(R.string.led_report_one));
                 }
             }
             for (Map.Entry<Integer, String> e : s.answers.entrySet()) {

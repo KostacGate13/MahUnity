@@ -157,9 +157,9 @@ abstract class LedProtocol {
         }
 
         /**
-         * The answer to askPixels, in the same envelope: 63 (or 00 63), then the LEDs in a segment (two bytes),
-         * 00, the segments, the chip, the wiring... Some controllers put it in JSON instead, the bytes in hex as
-         * "payload".
+         * The answer to askPixels, in the same envelope: 63 (or 00 63), the LEDs in a segment (two bytes), 00, the
+         * segments, the chip, the wiring... Or an IOTBT controller's state, EA 81..., whose segments are what E1 03
+         * colours one by one. Some controllers put either in JSON, the bytes in hex as "payload".
          */
         @Override int pixels(byte[] answer) {
             int n = answer.length > 8 ? setting(java.util.Arrays.copyOfRange(answer, 8, answer.length)) : -1;
@@ -181,6 +181,8 @@ abstract class LedProtocol {
                     b[i] = (byte) (hi << 4 | lo);
                 }
             }
+            // IOTBT controllers (firmware 11 on) say their state as EA 81 ...: the segments at 16, each a step for E1 03.
+            if (b.length >= 19 && (b[0] & 0xFF) == 0xEA && (b[1] & 0xFF) == 0x81) return b[16] > 0 ? b[16] & 0xFF : -1;
             int at = b.length > 0 && b[0] == 0x63 ? 0 : b.length > 1 && b[0] == 0x00 && b[1] == 0x63 ? 1 : -1;
             if (at < 0 || b.length < at + 6) return -1;
             int n = (b[at + 1] & 0xFF) << 8 | b[at + 2] & 0xFF;

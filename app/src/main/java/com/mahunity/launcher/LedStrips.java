@@ -230,6 +230,18 @@ final class LedStrips {
         return s.state == READY && s.protocol.addressable() && count > 0 && s.protocol.pixelBytes(count) <= room(s);
     }
 
+    /**
+     * How many steps a bar for a strip of this many LEDs gets: all of them where they fit one write, else as many
+     * as fit (the bar spread over them); 0 where the strip cannot light them one by one.
+     */
+    int fit(int role, int count) {
+        Strip s = strips[role];
+        if (s.state != READY || !s.protocol.addressable()) return 0;
+        int room = room(s), m = count;
+        while (m > 0 && s.protocol.pixelBytes(m) > room) m--;
+        return m;
+    }
+
     /** The most one write to a strip can carry now. */
     int room(int role) {
         return strips[role].channel == null ? 0 : room(strips[role]);
