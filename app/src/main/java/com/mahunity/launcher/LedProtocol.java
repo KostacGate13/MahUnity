@@ -62,6 +62,19 @@ abstract class LedProtocol {
         return null;
     }
 
+    /** How long pixels() is for this many LEDs; above any write if not addressable(). */
+    int pixelBytes(int count) {
+        return Integer.MAX_VALUE;
+    }
+
+    /** For controllers with more than one way of lighting LEDs one by one: which, as AUTO, E1 or ZONES. */
+    void use(int method, int product) {}
+
+    /** The way in use, E1 or ZONES; AUTO where there is only one. */
+    int method() {
+        return AUTO;
+    }
+
     private static UUID uuid(String shortId) {
         return UUID.fromString("0000" + shortId + "-0000-1000-8000-00805f9b34fb");
     }
@@ -91,15 +104,23 @@ abstract class LedProtocol {
         return n.contains("LED");
     }
 
+    /** Ways of lighting LEDs one by one: chosen from the model, the newer E1 03, the older 59. */
+    static final int AUTO = 0, E1 = 1, ZONES = 2;
+
     /**
      * ZENGGE's LEDnetWF controllers: every command in an envelope (a counter, its length, a type: 0B a command,
-     * 0A a question) on FF01, answers on FF02. Inside, the same commands as ZENGGE's Wi-Fi "addressable A3"
-     * controllers (see flux_led): power 3B 23/24, a colour as 3B A1 and hue (halved), saturation and value in
-     * percent; for a symphony strip, 59 and a colour for every LED; 63 asks for the strip's settings. Each ends
-     * in the sum of its bytes. (The envelope as in lednetwf_ble, the commands as in flux_led.)
+     * 0A a question) on FF01, answers on FF02. Inside: power 3B 23/24, a colour as 3B A1 and hue (halved),
+     * saturation and value in percent, each ending in the sum of its bytes; 63 asks for the strip's settings.
+     * On a symphony strip each LED has its own colour, in one of two ways by model: the newer controllers
+     * (0x53, 0x56, 0xAA and on, "symphonyE1" in ZENGGE's app) take E1 03 and an A1 hue, saturation and value for
+     * each; the older ones (0xA1 to 0xA9) take 59 and RGB for each, as ZENGGE's Wi-Fi "addressable A3" ones do.
+     * (The envelope and E1 as in lednetwf_ble, 59 as in flux_led.)
      */
     static final class Zengge extends LedProtocol {
+        /** The older symphony models, which take 59. */
+        private static final int[] ZONE_MODELS = {0xA1, 0xA2, 0xA3, 0xA4, 0xA6, 0xA7, 0xA9};
         private int sequence;
+        private int method = E1;
 
         Zengge() {
             super("ZENGGE", "ffff", "ff01");
@@ -170,8 +191,47 @@ abstract class LedProtocol {
             return true;
         }
 
-        /** 59, the length of it all (two bytes), a colour for every LED, then 00 1E, the effect (01: static), its speed and 00. */
+        @Override void use(int method, int product) {
+            if (method == AUTO) {
+                method = E1;
+                for (int m : ZONE_MODELS) if (m == product) method = ZONES;
+            }
+            this.method = method;
+        }
+
+        @Override int method() {
+            return method;
+        }
+
+        @Override int pixelBytes(int count) {
+            return method == ZONES ? 8 + 9 + 3 * count : count > 255 ? Integer.MAX_VALUE : 8 + 7 + 4 * count;
+        }
+
         @Override byte[] pixels(int[] rgb) {
+            return method == ZONES ? zones(rgb) : segments(rgb);
+        }
+
+        /** E1 03 00, the count, 00 00, the count again, then A1 and hue (halved), saturation, value for each; no sum. */
+        private byte[] segments(int[] rgb) {
+            int n = rgb.length;
+            byte[] c = new byte[7 + 4 * n];
+            c[0] = (byte) 0xe1;
+            c[1] = 0x03;
+            c[3] = (byte) n;
+            c[6] = (byte) n;
+            float[] hsv = new float[3];
+            for (int i = 0; i < n; i++) {
+                Color.RGBToHSV(rgb[i] >> 16 & 0xFF, rgb[i] >> 8 & 0xFF, rgb[i] & 0xFF, hsv);
+                c[7 + 4 * i] = (byte) 0xa1;
+                c[8 + 4 * i] = (byte) Math.round(hsv[0] / 2);
+                c[9 + 4 * i] = (byte) Math.round(hsv[1] * 100);
+                c[10 + 4 * i] = (byte) Math.round(hsv[2] * 100);
+            }
+            return wrap(c, 0x0b, false);
+        }
+
+        /** 59, the length of it all (two bytes), RGB for every LED, then 00 1E, the effect (01: static), its speed and 00. */
+        private byte[] zones(int[] rgb) {
             int n = rgb.length, total = 9 + n * 3;
             byte[] c = new byte[total - 1];
             c[0] = 0x59;
@@ -191,10 +251,14 @@ abstract class LedProtocol {
             return wrap(c, 0x0b);
         }
 
-        /** The envelope: 00, the counter, 80 00, the length (two bytes) and plus one, the type; then the command and its sum. */
         private byte[] wrap(byte[] command, int type) {
+            return wrap(command, type, true);
+        }
+
+        /** The envelope: 00, the counter, 80 00, the length (two bytes) and plus one, the type; then the command and its sum. */
+        private byte[] wrap(byte[] command, int type, boolean summed) {
             sequence = (sequence + 1) & 0xFF;
-            int length = command.length, inner = length + 1;
+            int length = command.length, inner = length + (summed ? 1 : 0);
             byte[] p = new byte[8 + inner];
             p[0] = 0x00;
             p[1] = (byte) sequence;
@@ -209,7 +273,7 @@ abstract class LedProtocol {
                 p[8 + i] = command[i];
                 sum += command[i] & 0xFF;
             }
-            p[8 + length] = (byte) sum;
+            if (summed) p[8 + length] = (byte) sum;
             return p;
         }
     }

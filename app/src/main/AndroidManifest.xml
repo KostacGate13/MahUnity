@@ -15,6 +15,11 @@
         tools:targetApi="s" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
+    <!-- The strips' music mode (Sound): what the unit plays, through a Visualizer, or the microphone. Asked for
+         when Music is chosen. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
     <!-- Fuel, battery, coolant and tyres from NWD Car Info's log (NwdLog). Granted only over ADB, once:
          adb shell pm grant com.mahunity.launcher android.permission.READ_LOGS -->
     <uses-permission

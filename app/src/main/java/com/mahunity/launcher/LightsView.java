@@ -12,15 +12,17 @@ import android.view.MotionEvent;
 import android.view.View;
 
 /**
- * The Lights tab: a card for each LED strip (the dashboard, the footwells) with its switch, a bar glowing in the
- * colour it shows right now (the dashboard's rev bar LED by LED) and the colours to choose from; under them the
- * four modes, and the way to the rest of the settings.
+ * The Lights tab: a card for each LED strip (the dashboard, the footwells) with its switch, a bar glowing as it
+ * shows right now (the dashboard LED by LED where it moves) and the colours to choose from, two of them in the
+ * modes that take two (a slot for each, then the colours for the slot chosen); under them the four modes, and
+ * the way to the rest of the settings.
  */
 final class LightsView extends View {
     interface Listener {
         void onLightSwitch(int role);
 
-        void onLightColor(int role, int color);
+        /** A colour chosen for a strip's first (slot 0) or second colour. */
+        void onLightColor(int role, int slot, int color);
 
         void onLightMode(int mode);
 
@@ -42,14 +44,17 @@ final class LightsView extends View {
     private final RectF more = new RectF();
     private final float[][] swatchX = new float[2][Ambient.COLORS.length];
     private final float[] swatchY = new float[2];
+    private final RectF[][] slots = {{new RectF(), new RectF()}, {new RectF(), new RectF()}};
     private final String[] names, modeNames;
-    private final String moreText;
+    private final String moreText, raceNote;
     private final String[] status = {"", ""};
     private final boolean[] on = new boolean[2];
-    private final int[] chosen = new int[2], shown = new int[2];
+    private final int[] chosen = new int[2], chosen2 = new int[2], shown = new int[2], slot = new int[2];
     private int[] revBar;
     private int mode;
-    private float radius, pad, swatchR;
+    /** Whether the mode takes two colours; whether the dashboard's are its own (not in Race). */
+    private boolean pair, topColours = true;
+    private float radius, pad, swatchR, cardH;
     private Listener listener;
     private Shader cardFill, cardFrame;
 
@@ -59,6 +64,7 @@ final class LightsView extends View {
         modeNames = new String[Ambient.MODE_NAMES.length];
         for (int i = 0; i < modeNames.length; i++) modeNames[i] = context.getString(Ambient.MODE_NAMES[i]);
         moreText = context.getString(R.string.led_settings) + "  ›";
+        raceNote = context.getString(R.string.led_race_note);
         for (int i = 0; i < modes.length; i++) modes[i] = new RectF();
         frame.setStyle(Paint.Style.STROKE);
         ring.setStyle(Paint.Style.STROKE);
@@ -74,18 +80,27 @@ final class LightsView extends View {
         listener = l;
     }
 
-    /** The state to draw: each strip's switch, own colour, shown colour and connection; the mode. */
+    /** The state to draw: each strip's switch, colours, what it shows and its connection; the mode. */
     void set(Ambient a, String topStatus, String bottomStatus) {
         on[0] = a.topOn;
         on[1] = a.bottomOn;
         chosen[0] = a.topColor;
         chosen[1] = a.bottomColor;
+        chosen2[0] = a.topColor2;
+        chosen2[1] = a.bottomColor2;
         shown[0] = a.shownTop;
         shown[1] = a.shownBottom;
         revBar = a.topBar;
-        mode = a.mode;
         status[0] = topStatus;
         status[1] = bottomStatus;
+        boolean two = a.mode == Ambient.NORMAL || a.mode == Ambient.MUSIC;
+        topColours = a.mode != Ambient.RACE;
+        if (two != pair || a.mode != mode) {
+            mode = a.mode;
+            pair = two;
+            if (!pair) slot[0] = slot[1] = 0;
+            place();
+        }
         invalidate();
     }
 
@@ -104,11 +119,9 @@ final class LightsView extends View {
             switches[i].set(c.right - pad - sw, c.top + pad, c.right - pad, c.top + pad + sh);
             float barTop = c.top + pad + sh + gap * 0.9f;
             bars[i].set(c.left + pad, barTop, c.right - pad, barTop + Math.max(4f, cardH * 0.07f));
-            int n = Ambient.COLORS.length;
-            swatchR = Math.min((c.width() - 2 * pad) / n * 0.36f, cardH * 0.13f);
-            swatchY[i] = c.bottom - pad - swatchR;
-            for (int k = 0; k < n; k++) swatchX[i][k] = c.left + pad + (c.width() - 2 * pad) * (k + 0.5f) / n;
         }
+        this.cardH = cardH;
+        place();
         float modesTop = 2 * cardH + 2 * gap, mw = (w - 3 * gap * 0.5f) / 4;
         for (int k = 0; k < 4; k++) {
             float x = k * (mw + gap * 0.5f);
@@ -124,6 +137,25 @@ final class LightsView extends View {
         cardFrame = Chrome.edge(0, 0, w, cardH);
     }
 
+    /** The colours along each card's foot: with two slots first where the mode takes two colours. */
+    private void place() {
+        if (cardH <= 0) return;
+        int n = Ambient.COLORS.length;
+        float lead = pair ? 2.8f : 0f;
+        for (int i = 0; i < 2; i++) {
+            RectF c = cards[i];
+            float left = c.left + pad, cell = (c.width() - 2 * pad) / (n + lead);
+            swatchR = Math.min(cell * 0.36f, cardH * 0.13f);
+            swatchY[i] = c.bottom - pad - swatchR;
+            float half = swatchR * 1.15f;
+            for (int k = 0; k < 2; k++) {
+                float x = left + cell * (k * 1.2f + 0.5f);
+                slots[i][k].set(x - half, swatchY[i] - half, x + half, swatchY[i] + half);
+            }
+            for (int k = 0; k < n; k++) swatchX[i][k] = left + cell * (lead + k + 0.5f);
+        }
+    }
+
     @Override protected void onDraw(Canvas c) {
         for (int i = 0; i < 2; i++) {
             RectF r = cards[i];
@@ -137,17 +169,41 @@ final class LightsView extends View {
             c.restore();
             c.drawText(names[i], r.left + pad, r.top + pad + title.getTextSize() * 0.8f, title);
             float nameW = title.measureText(names[i]);
-            CharSequence st = TextUtils.ellipsize(status[i], note, switches[i].left - (r.left + pad + nameW + pad) - pad,
-                    TextUtils.TruncateAt.END);
-            c.drawText(st, 0, st.length(), r.left + pad + nameW + pad, r.top + pad + title.getTextSize() * 0.8f, note);
+            String st = fit(status[i], note, switches[i].left - (r.left + pad + nameW + pad) - pad);
+            c.drawText(st, r.left + pad + nameW + pad, r.top + pad + title.getTextSize() * 0.8f, note);
             drawSwitch(c, switches[i], on[i]);
             if (i == 0 && revBar != null && on[0]) drawLeds(c, bars[0], revBar);
             else drawBar(c, bars[i], on[i] ? shown[i] : 0);
+            if (i == 0 && !topColours) {
+                c.drawText(fit(raceNote, note, r.width() - 2 * pad), r.left + pad, swatchY[i] + note.getTextSize() * 0.36f, note);
+                continue;
+            }
+            int current = pair && slot[i] == 1 ? chosen2[i] : chosen[i];
+            if (pair) {
+                for (int k = 0; k < 2; k++) {
+                    RectF sr = slots[i][k];
+                    float sr2 = sr.height() * 0.28f;
+                    swatch.setColor(0xFF000000 | (k == 0 ? chosen[i] : chosen2[i]));
+                    c.drawRoundRect(sr, sr2, sr2, swatch);
+                    chip.setColor(0xFF000000);
+                    c.drawText(k == 0 ? "1" : "2", sr.centerX(), sr.centerY() + chip.getTextSize() * 0.36f, chip);
+                    if (k == slot[i]) {
+                        ring.setColor(Chrome.TEXT);
+                        RectF o = new RectF(sr);
+                        o.inset(-ring.getStrokeWidth() * 1.6f, -ring.getStrokeWidth() * 1.6f);
+                        c.drawRoundRect(o, sr2 * 1.3f, sr2 * 1.3f, ring);
+                    }
+                }
+                frame.setShader(null);
+                frame.setColor(0x40FFFFFF);
+                float x = (slots[i][1].right + swatchX[i][0] - swatchR) / 2;
+                c.drawLine(x, swatchY[i] - swatchR, x, swatchY[i] + swatchR, frame);
+            }
             for (int k = 0; k < Ambient.COLORS.length; k++) {
                 int col = Ambient.COLORS[k];
                 swatch.setColor(0xFF000000 | col);
                 c.drawCircle(swatchX[i][k], swatchY[i], swatchR, swatch);
-                if (col == chosen[i]) {
+                if (col == current) {
                     ring.setColor(Chrome.TEXT);
                     c.drawCircle(swatchX[i][k], swatchY[i], swatchR + ring.getStrokeWidth() * 1.6f, ring);
                 }
@@ -203,6 +259,15 @@ final class LightsView extends View {
         glow.clearShadowLayer();
     }
 
+    /** The text, cut short with an ellipsis where it is wider than w. */
+    private static String fit(String text, TextPaint p, float w) {
+        if (p.measureText(text) <= w) return text;
+        float dots = p.measureText("…");
+        int n = text.length();
+        while (n > 0 && p.measureText(text, 0, n) + dots > w) n--;
+        return n == 0 ? "" : text.substring(0, n).trim() + "…";
+    }
+
     /** The rev bar: its LEDs side by side, a glow under the lit ones in the colour at their tip. */
     private void drawLeds(Canvas c, RectF r, int[] leds) {
         int n = leds.length, lit = 0;
@@ -235,10 +300,22 @@ final class LightsView extends View {
                 listener.onLightSwitch(i);
                 return true;
             }
+            if (i == 0 && !topColours) continue;
+            if (pair) {
+                for (int k = 0; k < 2; k++) {
+                    RectF sr = new RectF(slots[i][k]);
+                    sr.inset(-pad * 0.3f, -pad * 0.3f);
+                    if (sr.contains(x, y)) {
+                        slot[i] = k;
+                        invalidate();
+                        return true;
+                    }
+                }
+            }
             for (int k = 0; k < Ambient.COLORS.length; k++) {
                 float dx = x - swatchX[i][k], dy = y - swatchY[i];
                 if (dx * dx + dy * dy <= swatchR * swatchR * 2.6f) {
-                    listener.onLightColor(i, Ambient.COLORS[k]);
+                    listener.onLightColor(i, pair ? slot[i] : 0, Ambient.COLORS[k]);
                     return true;
                 }
             }

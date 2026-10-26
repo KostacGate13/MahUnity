@@ -152,7 +152,7 @@
     <string name="led_settings">Ρυθμίσεις φώτων</string>
     <string name="led_mode_normal">Κανονικό</string>
     <string name="led_mode_race">Race</string>
-    <string name="led_mode_ambient">Ambient</string>
+    <string name="led_mode_music">Μουσική</string>
     <string name="led_mode_static">Σταθερό</string>
     <string name="set_leds">Φώτα LED</string>
     <string name="set_led_device_top">Λωρίδα ταμπλό</string>
@@ -160,12 +160,40 @@
     <string name="set_led_mode">Λειτουργία</string>
     <string name="set_led_brightness">Φωτεινότητα</string>
     <string name="led_brightness_value">%1$d%%</string>
-    <string name="set_led_fuel_low">Βενζίνη: κόκκινο έως</string>
-    <string name="set_led_fuel_high">Βενζίνη: δικό τους χρώμα από</string>
-    <string name="set_led_redline">Στροφές: αναβοσβήνει από</string>
+    <string name="set_led_redline">Race: αναβοσβήνει από</string>
     <string name="set_led_bar_from">Μπάρα στροφών: αρχίζει από</string>
     <string name="set_led_pixels">Μπάρα στροφών: LED</string>
     <string name="set_led_sweep">Μπάρα στροφών: δοκιμή</string>
+    <string name="set_led_chase">Κανονικό: κίνηση</string>
+    <string-array name="led_chases">
+        <item>Αργή</item>
+        <item>Μέτρια</item>
+        <item>Γρήγορη</item>
+    </string-array>
+    <string name="set_led_music_source">Μουσική: ακούει</string>
+    <string-array name="led_music_sources">
+        <item>Ό,τι παίζει η μονάδα</item>
+        <item>Το μικρόφωνο</item>
+    </string-array>
+    <string name="set_led_music_sense">Μουσική: ευαισθησία</string>
+    <string-array name="led_senses">
+        <item>Χαμηλή</item>
+        <item>Μεσαία</item>
+        <item>Υψηλή</item>
+    </string-array>
+    <string name="set_led_method">Μπάρα στροφών: εντολή LED</string>
+    <string-array name="led_methods">
+        <item>Αυτόματα</item>
+        <item>Α (E1, νεότερα)</item>
+        <item>Β (59, παλαιότερα)</item>
+    </string-array>
+    <string name="led_race_note">Η μπάρα ακολουθεί τις στροφές: πράσινο, κόκκινο, μωβ</string>
+    <string name="led_status_no_mic">χρειάζεται άδεια μικροφώνου</string>
+    <string name="led_status_no_sound">δεν ακούει ήχο</string>
+    <string name="led_report_model">Μοντέλο: %1$s</string>
+    <string name="led_report_model_unknown">άγνωστο (διαλέξτε ξανά τη συσκευή για να διαβαστεί)</string>
+    <string name="led_report_link">MTU %1$d, έως %2$d bytes ανά αποστολή</string>
+    <string name="led_report_method">Εντολή LED: %1$s</string>
     <string name="led_pixels_auto">όσα λέει το χειριστήριο</string>
     <string name="led_pixels_auto_found">όσα λέει το χειριστήριο (%1$d)</string>
     <string name="led_pixels_count">%1$d LED</string>
@@ -175,7 +203,7 @@
     <string name="led_report_each">Μπάρα στροφών: LED προς LED</string>
     <string name="led_report_too_long">Μπάρα στροφών: ένα χρώμα (πολλά LED για μία αποστολή)</string>
     <string name="led_report_one">Μπάρα στροφών: ένα χρώμα (άγνωστο πλήθος LED: ορίστε το στο «Μπάρα στροφών: LED»)</string>
-    <string name="led_report_answer">Τελευταία απάντηση: %1$s</string>
+    <string name="led_report_answer">Απάντηση: %1$s</string>
     <string name="set_led_brake">Race: φρένο</string>
     <string-array name="led_brakes">
         <item>Ευαίσθητο</item>
@@ -184,7 +212,7 @@
     </string-array>
     <string name="set_led_status">Κατάσταση</string>
     <string name="set_led_help">Βοήθεια</string>
-    <string name="led_help">Το Cockpit ελέγχει μόνο του τα Bluetooth χειριστήρια LED: ZENGGE (LEDnetWF), ELK-BLEDOM (Lotus Lantern, Duoco Strip και τα περισσότερα κιτ για τα πόδια), Triones και Magic Home BLE (HappyLighting).\n\nΚάθε χειριστήριο δέχεται μία σύνδεση τη φορά. Κλείστε πρώτα τη δική του εφαρμογή, και στη μονάδα και στο κινητό, και μετά διαλέξτε το εδώ.\n\nΚανονικό: το ταμπλό γίνεται μπάρα στροφών, όπως στα τιμόνια των αγωνιστικών: στο ρελαντί ανάβει πράσινη η αριστερή άκρη, όσο ανεβαίνουν οι στροφές γεμίζει προς τα δεξιά, κόκκινη στη μέση, μωβ στο τέλος, και στο όριο αναβοσβήνει ολόκληρη. Αυτό θέλει λωρίδα addressable («symphony») σε χειριστήριο ZENGGE, ρυθμισμένη σε ένα τμήμα (segment) στην εφαρμογή του· οποιαδήποτε άλλη αλλάζει χρώμα ολόκληρη με την ίδια κλίμακα. Η «Μπάρα στροφών: δοκιμή» την τρέχει μία φορά. Τα πόδια ακολουθούν τη βενζίνη (κόκκινο ως το κάτω όριο, πορτοκαλί, το χρώμα τους από το πάνω όριο).\nRace: πράσινο όσο επιταχύνετε, κόκκινο όταν φρενάρετε, και το ταμπλό αναβοσβήνει στο όριο στροφών.\nAmbient: το χρώμα ατμόσφαιρας του Cockpit.\nΣταθερό: το χρώμα της κάθε λωρίδας.\n\nΑν μια λωρίδα γράφει «άγνωστος τύπος», η Κατάσταση δείχνει τις υπηρεσίες της: στείλτε τες για να προστεθεί.</string>
+    <string name="led_help">Το Cockpit ελέγχει μόνο του τα Bluetooth χειριστήρια LED: ZENGGE (LEDnetWF), ELK-BLEDOM (Lotus Lantern, Duoco Strip και τα περισσότερα κιτ για τα πόδια), Triones και Magic Home BLE (HappyLighting).\n\nΚάθε χειριστήριο δέχεται μία σύνδεση τη φορά. Κλείστε πρώτα τη δική του εφαρμογή, και στη μονάδα και στο κινητό, και μετά διαλέξτε το εδώ.\n\nΚανονικό: τα δύο χρώματα της κάθε λωρίδας κυνηγιούνται αργά από αριστερά προς τα δεξιά (μια λωρίδα που δεν ανάβει LED προς LED περνάει από το ένα χρώμα στο άλλο).\nRace: το ταμπλό γίνεται μπάρα στροφών, όπως στα τιμόνια των αγωνιστικών: στο ρελαντί ανάβει πράσινη η αριστερή άκρη, όσο ανεβαίνουν οι στροφές γεμίζει προς τα δεξιά, κόκκινη στη μέση, μωβ στο τέλος, και στο όριο αναβοσβήνει ολόκληρη. Τα πόδια μένουν στο χρώμα τους και αναβοσβήνουν κόκκινα όταν φρενάρετε.\nΜουσική: το ταμπλό γεμίζει από αριστερά με τη μουσική, τα πόδια χτυπούν με το μπάσο. Ό,τι παίζει η μονάδα ακούγεται μέσω Android· αν το ραδιόφωνο δεν φαίνεται, διαλέξτε το μικρόφωνο.\nΣταθερό: το πρώτο χρώμα της κάθε λωρίδας.\n\nΤο LED προς LED θέλει λωρίδα addressable («symphony») σε χειριστήριο ZENGGE, ρυθμισμένη σε ένα τμήμα (segment) στην εφαρμογή του. Αν η μπάρα δεν γεμίζει από αριστερά, ορίστε στο «Μπάρα στροφών: LED» πόσα LED έχει η λωρίδα και δοκιμάστε και τις δύο εντολές LED με τη «Μπάρα στροφών: δοκιμή». Η Κατάσταση δείχνει το μοντέλο του χειριστηρίου και τις απαντήσεις του: στείλτε τες αν πάλι δεν δουλεύει.</string>
     <string name="led_choose">Επιλογή</string>
     <string name="led_scan_none">Καμία (αφαίρεση)</string>
     <string name="led_no_ble">Η μονάδα δεν έχει Bluetooth LE για εφαρμογές.</string>

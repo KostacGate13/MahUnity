@@ -1,5 +1,6 @@
 package com.mahunity.launcher;
 
+import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.os.Handler;
@@ -7,133 +8,182 @@ import android.os.Looper;
 import android.os.SystemClock;
 
 /**
- * What the two LED strips show, worked out from the car as it reports itself. Four modes:
+ * What the two LED strips show, worked out from the car, the music or the clock. Each strip has two colours of
+ * its own. Four modes:
  * <ul>
- * <li>Normal: the dashboard is a rev bar, as on a racing car's wheel: from the left, green at idle, filling to
- * the right as the revs rise, through yellow to red half way and on to purple at the redline, where all of it
- * flashes as a shift light. A strip that cannot light its LEDs one by one takes the colour the bar has
- * reached. The footwells follow the fuel, red at or under the low mark, through orange, to their own colour
- * from the high mark up.</li>
- * <li>Race: both green while the car pulls (speed rising, or high revs), red while it brakes (speed falling
- * fast; the car sends no brake signal), the ambient colour while cruising; the dashboard keeps the shift light.</li>
- * <li>Ambient: both in Cockpit's ambient colour.</li>
- * <li>Static: each in its own colour.</li>
+ * <li>Normal: the two colours chase each other slowly from left to right along a strip that lights its LEDs one
+ * by one; one that cannot (the footwells) fades from one to the other and back.</li>
+ * <li>Race: the dashboard is a rev bar, as on a racing car's wheel: from the left, green at idle, filling to the
+ * right as the revs rise, through yellow to red half way and on to purple at the redline, where all of it
+ * flashes as a shift light (a strip that cannot light its LEDs one by one takes the colour the bar has reached).
+ * The footwells keep their first colour and flash red while the car brakes (speed falling fast: the car sends
+ * no brake signal).</li>
+ * <li>Music: the dashboard is a level meter filling from the left with the music, from its first colour to its
+ * second; the footwells pulse with the bass, which takes a harder hit to show.</li>
+ * <li>Static: each strip in its first colour.</li>
  * </ul>
- * Settings are kept in the preferences; the shown colours are kept for the Lights tab to draw.
+ * Settings are kept in the preferences; what the strips show is kept for the Lights tab to draw.
  */
-final class Ambient {
+final class Ambient implements Sound.Listener {
     interface Listener {
         void onAmbientChanged();
     }
 
-    static final int NORMAL = 0, RACE = 1, AMBIENT = 2, STATIC = 3;
-    static final int[] MODE_NAMES = {R.string.led_mode_normal, R.string.led_mode_race, R.string.led_mode_ambient,
+    static final int NORMAL = 0, RACE = 1, MUSIC = 2, STATIC = 3;
+    static final int[] MODE_NAMES = {R.string.led_mode_normal, R.string.led_mode_race, R.string.led_mode_music,
         R.string.led_mode_static};
-    static final int RED = 0xFF0000, ORANGE = 0xFF6A00, GREEN = 0x00FF2A, OFF = 0x000000;
+    static final int RED = 0xFF0000, OFF = 0x000000;
     /** The colours offered on the Lights tab. */
     static final int[] COLORS = {0x8A2BFF, 0xC800FF, 0xFF2D95, 0xFF0000, 0xFF6A00, 0xFFC800, 0x00FF2A, 0x00E5FF,
         0x0050FF, 0xFFFFFF};
-    private static final long TICK_MS = 110, BRAKE_HOLD_MS = 900, WINDOW_MS = 900;
+    /** Normal: how long the colours take to pass along a strip, slow, medium and fast. */
+    static final long[] CHASE_MS = {9_000, 5_000, 2_500};
+    /** Music, at low, medium and high sensitivity: the gain on the loudness, and how hard the bass must hit. */
+    private static final float[] MUSIC_GAIN = {0.8f, 1f, 1.3f}, BASS_GATE = {0.6f, 0.45f, 0.3f};
+    private static final long FRAME_MS = 60, FLASH_MS = 120, BRAKE_HOLD_MS = 900, WINDOW_MS = 900;
     /** A trial of the rev bar: up to the redline over the first part, then the shift light. */
-    private static final long SWEEP_UP_MS = 3_000, SWEEP_MS = 4_400, SWEEP_TICK_MS = 50;
+    private static final long SWEEP_UP_MS = 3_000, SWEEP_MS = 4_400;
     /** LEDs drawn on the tab while the strip has not said how many it has. */
     static final int PREVIEW = 30;
-    /** Where along the bar it is red, and the hue it ends in. */
+    /** Where along the rev bar it is red, and the hue it ends in. */
     private static final float RED_AT = 0.55f, PURPLE = 272f;
 
     private final SharedPreferences prefs;
     private final LedStrips leds;
     private final Listener listener;
+    private final Sound sound;
     private final Handler handler = new Handler(Looper.getMainLooper());
 
     int mode;
     boolean topOn, bottomOn;
-    int topColor, bottomColor;
+    /** Each strip's two colours: Static and Race take the first, Normal and Music both. */
+    int topColor, topColor2, bottomColor, bottomColor2;
     /** 10 to 100. */
     int brightness;
-    /** Fuel marks in litres, the redline in rpm, braking in km/h lost per second. */
-    float fuelLow, fuelHigh, brake;
-    int redline;
-    /** The rpm the rev bar starts from; the dashboard's LEDs set by hand (0: as its controller says). */
-    int barFrom, topPixels;
+    /** The redline and the rev bar's start in rpm; braking in km/h lost per second. */
+    int redline, barFrom;
+    float brake;
+    /** The dashboard's LEDs set by hand (0: as its controller says); how it lights them one by one. */
+    int topPixels, topMethod;
+    /** Normal's speed and Music's sensitivity, 0 to 2 each; where Music listens, Sound.OUTPUT or MIC. */
+    int chase, musicSense, musicSource;
 
     private int rpm = -1, speed = -1;
-    private float litres = -1;
     /** Recent speeds, as (time, km/h), oldest first. */
     private final long[] times = new long[16];
     private final int[] speeds = new int[16];
     private int samples;
-    private long brakeUntil;
-    private boolean flashOn;
-    private boolean ticking, sweeping;
-    private long sweepFrom;
+    private long brakeUntil, sweepFrom;
+    private float level, bass;
+    private boolean framing;
     /** What the strips show now, before dimming: for the tab. */
     int shownTop, shownBottom;
-    /** The rev bar LED by LED as it shows now (PREVIEW of them if the count is not known); null in other modes. */
+    /** The dashboard LED by LED as it shows now (PREVIEW of them if the count is not known); null if in one colour. */
     int[] topBar;
 
-    private final Runnable tick = new Runnable() {
+    private final Runnable frame = new Runnable() {
         @Override public void run() {
-            ticking = false;
-            flashOn = !flashOn;
+            framing = false;
             apply();
         }
     };
 
-    private final Runnable sweeper = new Runnable() {
-        @Override public void run() {
-            sweeping = false;
-            apply();
-        }
-    };
-
-    Ambient(SharedPreferences prefs, LedStrips leds, Listener listener) {
+    Ambient(Context context, SharedPreferences prefs, LedStrips leds, Listener listener) {
         this.prefs = prefs;
         this.leds = leds;
         this.listener = listener;
-        mode = prefs.getInt("led_mode", NORMAL);
+        sound = new Sound(context, this);
+        // The modes were Normal, Race, Ambient, Static: Ambient is gone, its place Music's.
+        int old = prefs.getInt("led_mode", NORMAL);
+        mode = prefs.getInt("led_mode2", old == 2 ? STATIC : old);
         topOn = prefs.getBoolean("led_top_on", true);
         bottomOn = prefs.getBoolean("led_bottom_on", true);
         topColor = prefs.getInt("led_top_color", COLORS[0]);
+        topColor2 = prefs.getInt("led_top_color2", COLORS[8]);
         bottomColor = prefs.getInt("led_bottom_color", COLORS[0]);
+        bottomColor2 = prefs.getInt("led_bottom_color2", COLORS[8]);
         brightness = prefs.getInt("led_brightness", 80);
-        fuelLow = prefs.getFloat("led_fuel_low", 5f);
-        fuelHigh = prefs.getFloat("led_fuel_high", 10f);
         redline = prefs.getInt("led_redline", 5500);
         brake = prefs.getFloat("led_brake", 8f);
         barFrom = prefs.getInt("led_bar_from", 800);
         topPixels = prefs.getInt("led_top_pixels", 0);
-        String top = prefs.getString("led_top_address", null), bottom = prefs.getString("led_bottom_address", null);
-        leds.use(LedStrips.TOP, top, prefs.getString("led_top_name", null));
-        leds.use(LedStrips.BOTTOM, bottom, prefs.getString("led_bottom_name", null));
+        topMethod = prefs.getInt("led_top_method", LedProtocol.AUTO);
+        chase = prefs.getInt("led_chase", 0);
+        musicSense = prefs.getInt("led_music_sense", 1);
+        musicSource = prefs.getInt("led_music_source", Sound.OUTPUT);
+        for (int role = 0; role < 2; role++) {
+            String key = role == LedStrips.TOP ? "led_top" : "led_bottom";
+            leds.use(role, prefs.getString(key + "_address", null), prefs.getString(key + "_name", null),
+                    prefs.getInt(key + "_product", -1));
+        }
+        leds.method(LedStrips.TOP, topMethod);
     }
 
     void save() {
-        prefs.edit().putInt("led_mode", mode).putBoolean("led_top_on", topOn).putBoolean("led_bottom_on", bottomOn)
-                .putInt("led_top_color", topColor).putInt("led_bottom_color", bottomColor)
-                .putInt("led_brightness", brightness).putFloat("led_fuel_low", fuelLow).putFloat("led_fuel_high", fuelHigh)
-                .putInt("led_redline", redline).putFloat("led_brake", brake).putInt("led_bar_from", barFrom)
-                .putInt("led_top_pixels", topPixels).apply();
+        prefs.edit().putInt("led_mode2", mode).putBoolean("led_top_on", topOn).putBoolean("led_bottom_on", bottomOn)
+                .putInt("led_top_color", topColor).putInt("led_top_color2", topColor2)
+                .putInt("led_bottom_color", bottomColor).putInt("led_bottom_color2", bottomColor2)
+                .putInt("led_brightness", brightness).putInt("led_redline", redline).putFloat("led_brake", brake)
+                .putInt("led_bar_from", barFrom).putInt("led_top_pixels", topPixels).putInt("led_top_method", topMethod)
+                .putInt("led_chase", chase).putInt("led_music_sense", musicSense)
+                .putInt("led_music_source", musicSource).apply();
+        leds.method(LedStrips.TOP, topMethod);
+        listen();
         apply();
     }
 
-    /** A device chosen for a strip, kept for the next start. */
-    void use(int role, String address, String name) {
+    /** A device chosen for a strip, with the model it said (-1 if none), kept for the next start. */
+    void use(int role, String address, String name, int product) {
         String key = role == LedStrips.TOP ? "led_top" : "led_bottom";
-        prefs.edit().putString(key + "_address", address).putString(key + "_name", name).apply();
-        leds.use(role, address, name);
+        prefs.edit().putString(key + "_address", address).putString(key + "_name", name).putInt(key + "_product", product)
+                .apply();
+        leds.use(role, address, name, product);
         apply();
     }
 
-    /** The car's latest: rpm and km/h (below zero unknown), litres in the tank (below zero unknown). */
-    void update(int rpm, int kmh, float litres) {
+    /** Listens to the music while Music mode needs it, from where it is set to; stops otherwise. */
+    void listen() {
+        if (mode == MUSIC && (topOn || bottomOn)) sound.start(musicSource);
+        else sound.stop();
+    }
+
+    /** Whether Music mode hears anything: allowed to listen, and the source opened. */
+    boolean hearing() {
+        return sound.allowed() && sound.working;
+    }
+
+    boolean mayListen() {
+        return sound.allowed();
+    }
+
+    void close() {
+        handler.removeCallbacks(frame);
+        framing = false;
+        sound.stop();
+    }
+
+    /** The car's latest: rpm and km/h, below zero unknown. */
+    void update(int rpm, int kmh) {
         this.rpm = rpm;
-        this.litres = litres;
         if (kmh != speed) {
             speed = kmh;
             sample(kmh);
         }
         apply();
+    }
+
+    @Override public void onSound(float level, float bass) {
+        if (mode != MUSIC) return;
+        float gate = BASS_GATE[clamp(musicSense)];
+        float hit = Math.max(0f, (bass - gate) / (1 - gate));
+        // Up at once, down gently: the meter falls back over a few readings, the bass a little faster.
+        this.level = Math.max(Math.min(1f, level * MUSIC_GAIN[clamp(musicSense)]), this.level * 0.8f);
+        this.bass = Math.max(hit, this.bass * 0.65f);
+        apply();
+    }
+
+    private static int clamp(int i) {
+        return Math.max(0, Math.min(2, i));
     }
 
     private void sample(int kmh) {
@@ -151,8 +201,7 @@ final class Ambient {
         speeds[samples] = kmh;
         samples++;
         // Braking: speed lost faster than the mark, over the last moment.
-        float change = change(now);
-        if (change <= -brake) brakeUntil = now + BRAKE_HOLD_MS;
+        if (change(now) <= -brake) brakeUntil = now + BRAKE_HOLD_MS;
     }
 
     /** km/h per second over the last WINDOW_MS, from the oldest sample in it to the newest. */
@@ -166,7 +215,7 @@ final class Ambient {
         return (speeds[last] - speeds[first]) * 1000f / dt;
     }
 
-    /** Runs the rev bar up to the redline and its shift light once, whatever the mode, then back to the car. */
+    /** Runs the rev bar up to the redline and its shift light once, whatever the mode, then back as it was. */
     void sweep() {
         sweepFrom = SystemClock.elapsedRealtime();
         apply();
@@ -177,7 +226,7 @@ final class Ambient {
         return topPixels > 0 ? topPixels : leds.pixels(LedStrips.TOP);
     }
 
-    /** Works the colours out again and sends them; keeps ticking while something flashes, holds or sweeps. */
+    /** Works the colours out again and sends them; keeps going while something moves, flashes or holds. */
     void apply() {
         long now = SystemClock.elapsedRealtime();
         boolean trial = sweepFrom > 0 && now - sweepFrom < SWEEP_MS;
@@ -185,48 +234,48 @@ final class Ambient {
         int revs = trial ? sweepRevs(now) : rpm;
         boolean shifting = revs >= redline && redline > 0;
         boolean braking = now < brakeUntil;
+        boolean flash = now / FLASH_MS % 2 == 0;
+        int n = pixels(), count = n > 0 ? n : PREVIEW;
         int top, bottom;
+        topBar = null;
         switch (mode) {
             case RACE:
-                int pull = braking ? RED : racing(now) ? green() : Chrome.accent & 0xFFFFFF;
-                top = shifting && !braking ? (flashOn ? RED : OFF) : pull;
-                bottom = pull;
+                top = topColor;
+                bottom = braking ? (flash ? RED : OFF) : bottomColor;
                 break;
-            case AMBIENT:
-                top = bottom = Chrome.accent & 0xFFFFFF;
+            case MUSIC:
+                topBar = meter(count, level, topColor, topColor2);
+                top = scale(mix(topColor, topColor2, level), 0.15f + 0.85f * level);
+                bottom = scale(mix(bottomColor, bottomColor2, bass), 0.12f + 0.88f * bass);
                 break;
             case STATIC:
                 top = topColor;
                 bottom = bottomColor;
                 break;
             default:
-                top = topColor;
-                bottom = fuel(bottomColor);
+                float phase = now % CHASE_MS[clamp(chase)] / (float) CHASE_MS[clamp(chase)];
+                topBar = chase(count, phase, topColor, topColor2);
+                top = mix(topColor, topColor2, wave(phase));
+                bottom = mix(bottomColor, bottomColor2, wave(phase));
                 break;
         }
         // The rev bar: its colours by place, lit up to the revs; all of it flashing at the redline.
-        topBar = null;
-        int n = pixels();
-        if ((mode == NORMAL || trial) && revs >= 0) {
+        if ((mode == RACE || trial) && revs >= 0) {
             float f = fill(revs);
-            int count = n > 0 ? n : PREVIEW;
-            topBar = bar(count, shifting ? (flashOn ? count : 0) : Math.max(Math.max(1, Math.round(count / 20f)),
+            topBar = bar(count, shifting ? (flash ? count : 0) : Math.max(Math.max(1, Math.round(count / 20f)),
                     Math.round(f * count)));
-            top = shifting ? (flashOn ? barColor(1f) : OFF) : barColor(f);
+            top = shifting ? (flash ? barColor(1f) : OFF) : barColor(f);
         }
         shownTop = top;
         shownBottom = bottom;
         leds.set(LedStrips.TOP, topOn || trial, dim(top), topBar != null && n > 0 ? dim(topBar) : null);
         leds.set(LedStrips.BOTTOM, bottomOn, dim(bottom));
         listener.onAmbientChanged();
-        boolean dynamic = (mode == NORMAL || mode == RACE || trial) && shifting || mode == RACE && braking;
-        if (dynamic && (topOn || bottomOn || trial) && !ticking) {
-            ticking = true;
-            handler.postDelayed(tick, TICK_MS);
-        }
-        if (trial && !sweeping) {
-            sweeping = true;
-            handler.postDelayed(sweeper, SWEEP_TICK_MS);
+        boolean moving = trial || mode == NORMAL && (topOn || bottomOn)
+                || mode == RACE && (shifting && topOn || braking && bottomOn);
+        if (moving && !framing) {
+            framing = true;
+            handler.postDelayed(frame, FRAME_MS);
         }
     }
 
@@ -242,49 +291,53 @@ final class Ambient {
         return Math.max(0f, Math.min(1f, (revs - barFrom) / (float) Math.max(100, redline - barFrom)));
     }
 
-    /** A bar of count LEDs, the first lit of them in their colours, the rest off. */
+    /** A rev bar of count LEDs, the first lit of them in their colours, the rest off. */
     static int[] bar(int count, int lit) {
         int[] out = new int[count];
         for (int i = 0; i < Math.min(lit, count); i++) out[i] = barColor(count == 1 ? 1f : i / (float) (count - 1));
         return out;
     }
 
-    /** The bar's colour at t along it: green at the left, yellow, red at RED_AT, then magenta to purple. */
+    /** The rev bar's colour at t along it: green at the left, yellow, red at RED_AT, then magenta to purple. */
     static int barColor(float t) {
         t = Math.max(0f, Math.min(1f, t));
         float hue = t <= RED_AT ? 120f * (1 - t / RED_AT) : 360f - (360f - PURPLE) * (t - RED_AT) / (1 - RED_AT);
         return Color.HSVToColor(new float[] {hue % 360f, 1f, 1f}) & 0xFFFFFF;
     }
 
-    /** Pulling: speed rising, or revs up while moving. */
-    private boolean racing(long now) {
-        return speed > 3 && (change(now) >= 1.5f || rpm >= 3000);
+    /** Normal along a strip: a wave from one colour to the other and back, moved right by phase (0 to 1). */
+    static int[] chase(int count, float phase, int a, int b) {
+        int[] out = new int[count];
+        for (int i = 0; i < count; i++) out[i] = mix(a, b, wave(i / (float) count - phase));
+        return out;
     }
 
-    /** Green, brighter with the revs. */
-    private int green() {
-        float t = rpm < 0 ? 0.6f : Math.max(0.35f, Math.min(1f, rpm / (float) Math.max(1, redline)));
-        return mix(OFF, GREEN, t);
+    /** 0 to 1 and back over each whole turn of t, smoothly. */
+    private static float wave(float t) {
+        return (float) (1 - Math.cos(2 * Math.PI * t)) / 2;
     }
 
-    /** Red at or under the low mark, orange half way, the footwells' own colour from the high mark up. */
-    private int fuel(int base) {
-        if (litres < 0) return base;
-        if (litres <= fuelLow) return RED;
-        if (litres >= fuelHigh) return base;
-        float t = (litres - fuelLow) / Math.max(0.1f, fuelHigh - fuelLow);
-        return t < 0.5f ? mix(RED, ORANGE, t * 2) : mix(ORANGE, base, (t - 0.5f) * 2);
+    /** Music along a strip: lit from the left as far as the level, from one colour to the other. */
+    static int[] meter(int count, float level, int a, int b) {
+        int[] out = new int[count];
+        int lit = Math.round(Math.max(0f, Math.min(1f, level)) * count);
+        for (int i = 0; i < lit; i++) out[i] = mix(a, b, count == 1 ? 1f : i / (float) (count - 1));
+        return out;
     }
 
     private int dim(int rgb) {
-        float f = Math.max(10, Math.min(100, brightness)) / 100f;
-        return Math.round((rgb >> 16 & 0xFF) * f) << 16 | Math.round((rgb >> 8 & 0xFF) * f) << 8 | Math.round((rgb & 0xFF) * f);
+        return scale(rgb, Math.max(10, Math.min(100, brightness)) / 100f);
     }
 
     private int[] dim(int[] bar) {
         int[] out = new int[bar.length];
         for (int i = 0; i < bar.length; i++) out[i] = dim(bar[i]);
         return out;
+    }
+
+    static int scale(int rgb, float f) {
+        f = Math.max(0f, Math.min(1f, f));
+        return Math.round((rgb >> 16 & 0xFF) * f) << 16 | Math.round((rgb >> 8 & 0xFF) * f) << 8 | Math.round((rgb & 0xFF) * f);
     }
 
     static int mix(int a, int b, float t) {

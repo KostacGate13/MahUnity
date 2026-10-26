@@ -178,7 +178,7 @@ public final class HomeActivity extends Activity
         trip = new Trip(prefs);
         apps = new Apps(this, this);
         leds = new LedStrips(this, this);
-        ambient = new Ambient(prefs, leds, this);
+        ambient = new Ambient(this, prefs, leds, this);
 
         buildHome();
         buildAppsPanel();
@@ -191,6 +191,7 @@ public final class HomeActivity extends Activity
         root.addView(lightsSettings.panel);
         // The strips stay connected for as long as Home lives, following the car while other apps are in front.
         leds.start();
+        ambient.listen();
         ambient.apply();
         setContentView(root);
         hideStatusBar();
@@ -614,6 +615,7 @@ public final class HomeActivity extends Activity
         trip.save();
         apps.close();
         can.close();
+        ambient.close();
         leds.close();
         media.release();
         if (carFrames != null) carFrames.close();
@@ -789,11 +791,15 @@ public final class HomeActivity extends Activity
         ambient.save();
     }
 
-    @Override public void onLightColor(int role, int color) {
-        if (role == LedStrips.TOP) ambient.topColor = color;
-        else ambient.bottomColor = color;
-        // Ambient takes Cockpit's colour; choosing one means the strip's own.
-        if (ambient.mode == Ambient.AMBIENT) ambient.mode = Ambient.STATIC;
+    @Override public void onLightColor(int role, int slot, int color) {
+        if (role == LedStrips.TOP) {
+            if (slot == 1) ambient.topColor2 = color;
+            else ambient.topColor = color;
+        } else if (slot == 1) {
+            ambient.bottomColor2 = color;
+        } else {
+            ambient.bottomColor = color;
+        }
         ambient.save();
         showHeader();
     }
@@ -802,6 +808,7 @@ public final class HomeActivity extends Activity
         ambient.mode = mode;
         ambient.save();
         showHeader();
+        LightsSettings.askMicrophone(this, ambient);
     }
 
     @Override public void onLightSettings() {
@@ -926,6 +933,12 @@ public final class HomeActivity extends Activity
             lightsSettings.onPermission();
             return;
         }
+        if (requestCode == Sound.REQUEST) {
+            ambient.listen();
+            lightsChanged();
+            if (shown == lightsSettings.panel) lightsSettings.refresh();
+            return;
+        }
         if (requestCode == REQUEST_LOCATION && speed.allowed()) enableSpeed();
         refreshSettings();
     }
@@ -949,7 +962,7 @@ public final class HomeActivity extends Activity
         showDoors();
         // The lights follow the car whatever is in front.
         float kmh = currentSpeed();
-        ambient.update(can.rpm, kmh < 0 ? -1 : Math.round(kmh), can.fuel);
+        ambient.update(can.rpm, kmh < 0 ? -1 : Math.round(kmh));
         if (!resumed) return;
         top.setOutside(can.outside);
         float tank = tank();

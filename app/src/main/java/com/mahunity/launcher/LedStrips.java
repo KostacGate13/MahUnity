@@ -21,10 +21,13 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.Process;
 import android.os.SystemClock;
+import android.util.SparseArray;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -52,10 +55,10 @@ final class LedStrips {
     private static final int LONG_WRITE = 512;
     private static final UUID CONFIG = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb");
 
-    /** A device seen while scanning. */
+    /** A device seen while scanning; a ZENGGE one says its model (-1 otherwise). */
     static final class Found {
         final String address, name;
-        int rssi;
+        int rssi, product = -1;
 
         Found(String address, String name, int rssi) {
             this.address = address;
@@ -74,8 +77,10 @@ final class LedStrips {
         String services;
         /** The LEDs its controller says the strip has (per segment); 0 until it says. */
         int pixels;
-        /** The last thing the controller sent, in hex, for the status screen. */
-        String answer;
+        /** The model its advertisement gave when it was chosen, -1 if none; how to light LEDs one by one. */
+        int product = -1, method = LedProtocol.AUTO;
+        /** What the controller sent, the latest of each kind (by its first byte), in hex, for the status screen. */
+        final Map<Integer, String> answers = new LinkedHashMap<>();
         /** The MTU agreed with the controller. */
         int mtu = 23;
         private BluetoothGatt gatt;
@@ -158,19 +163,30 @@ final class LedStrips {
         return adapter != null;
     }
 
-    /** Remembered devices; connects to them from now on. */
-    void use(int role, String address, String name) {
+    /** Remembered devices, with the model each said when chosen (-1 unknown); connects to them from now on. */
+    void use(int role, String address, String name, int product) {
         Strip s = strips[role];
+        if (product >= 0) s.product = product;
         if (address != null && address.equals(s.address)) return;
         disconnect(s);
         s.address = address;
         s.name = name;
+        s.product = product;
         s.unsupported = false;
         s.services = null;
         s.pixels = 0;
-        s.answer = null;
+        s.answers.clear();
         connect(s);
         listener.onLedsChanged();
+    }
+
+    /** How a strip lights its LEDs one by one, LedProtocol.AUTO, E1 or ZONES. */
+    void method(int role, int method) {
+        Strip s = strips[role];
+        s.method = method;
+        if (s.protocol != null) s.protocol.use(method, s.product);
+        s.sentBar = null;
+        pump(s);
     }
 
     void start() {
@@ -211,12 +227,12 @@ final class LedStrips {
     /** Whether a strip lights its LEDs one by one: connected, addressable, and a bar of that length fits a write. */
     boolean lightsEach(int role, int count) {
         Strip s = strips[role];
-        return s.state == READY && s.protocol.addressable() && count > 0 && barBytes(count) <= room(s);
+        return s.state == READY && s.protocol.addressable() && count > 0 && s.protocol.pixelBytes(count) <= room(s);
     }
 
-    /** The length of a bar of LEDs as the addressable controllers take it: an envelope, 59 and the rest. */
-    private static int barBytes(int count) {
-        return 8 + 9 + 3 * count;
+    /** The most one write to a strip can carry now. */
+    int room(int role) {
+        return strips[role].channel == null ? 0 : room(strips[role]);
     }
 
     private void connect(Strip s) {
@@ -295,6 +311,7 @@ final class LedStrips {
                         }
                         s.protocol = p;
                         s.channel = p.characteristic(gatt);
+                        p.use(s.method, s.product);
                         if (p.answers() == null) {
                             ready(s);
                             return;
@@ -396,7 +413,11 @@ final class LedStrips {
         main.post(new Runnable() {
             @Override public void run() {
                 if (gatt != s.gatt || s.protocol == null) return;
-                s.answer = LedProtocol.hex(value.length > 64 ? Arrays.copyOf(value, 64) : value);
+                // Kept by kind: the first byte after the envelope where there is one.
+                int kind = value.length > 8 ? value[8] & 0xFF : value.length > 0 ? value[0] & 0xFF : 0;
+                s.answers.remove(kind);
+                s.answers.put(kind, LedProtocol.hex(value.length > 64 ? Arrays.copyOf(value, 64) : value));
+                while (s.answers.size() > 4) s.answers.remove(s.answers.keySet().iterator().next());
                 int n = s.protocol.pixels(value);
                 if (n > 0 && n != s.pixels) {
                     s.pixels = n;
@@ -526,6 +547,20 @@ final class LedStrips {
         return scanning;
     }
 
+    /** A ZENGGE controller's model, from its advertisement: maker data under a company number from 0x5A00 to 0x5AFF, the model at 8 and 9. */
+    private static void model(Found f, ScanResult r) {
+        SparseArray<byte[]> maker = r.getScanRecord() == null ? null : r.getScanRecord().getManufacturerSpecificData();
+        if (maker == null) return;
+        for (int i = 0; i < maker.size(); i++) {
+            int company = maker.keyAt(i);
+            byte[] b = maker.valueAt(i);
+            if (company >= 0x5A00 && company <= 0x5AFF && b != null && b.length >= 11) {
+                f.product = (b[8] & 0xFF) << 8 | b[9] & 0xFF;
+                return;
+            }
+        }
+    }
+
     private final ScanCallback scanCallback = new ScanCallback() {
         @Override public void onScanResult(int type, final ScanResult r) {
             main.post(new Runnable() {
@@ -547,6 +582,7 @@ final class LedStrips {
                         }
                     }
                     Found f = new Found(address, name.trim(), r.getRssi());
+                    model(f, r);
                     // LED controllers first, the rest after.
                     int at = found.size();
                     if (LedProtocol.looksLikeLed(f.name)) {

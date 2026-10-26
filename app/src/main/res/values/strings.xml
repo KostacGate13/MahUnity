@@ -154,7 +154,7 @@
     <string name="led_settings">Light settings</string>
     <string name="led_mode_normal">Normal</string>
     <string name="led_mode_race">Race</string>
-    <string name="led_mode_ambient">Ambient</string>
+    <string name="led_mode_music">Music</string>
     <string name="led_mode_static">Static</string>
     <string name="set_leds">LED lights</string>
     <string name="set_led_device_top">Dashboard strip</string>
@@ -162,12 +162,40 @@
     <string name="set_led_mode">Mode</string>
     <string name="set_led_brightness">Brightness</string>
     <string name="led_brightness_value">%1$d%%</string>
-    <string name="set_led_fuel_low">Fuel: red up to</string>
-    <string name="set_led_fuel_high">Fuel: own colour from</string>
-    <string name="set_led_redline">Revs: shift light from</string>
+    <string name="set_led_redline">Race: shift light from</string>
     <string name="set_led_bar_from">Rev bar: starts at</string>
     <string name="set_led_pixels">Rev bar: LEDs</string>
     <string name="set_led_sweep">Rev bar: try it</string>
+    <string name="set_led_chase">Normal: movement</string>
+    <string-array name="led_chases">
+        <item>Slow</item>
+        <item>Medium</item>
+        <item>Fast</item>
+    </string-array>
+    <string name="set_led_music_source">Music: listens to</string>
+    <string-array name="led_music_sources">
+        <item>What the unit plays</item>
+        <item>The microphone</item>
+    </string-array>
+    <string name="set_led_music_sense">Music: sensitivity</string>
+    <string-array name="led_senses">
+        <item>Low</item>
+        <item>Medium</item>
+        <item>High</item>
+    </string-array>
+    <string name="set_led_method">Rev bar: LED command</string>
+    <string-array name="led_methods">
+        <item>Automatic</item>
+        <item>A (E1, newer)</item>
+        <item>B (59, older)</item>
+    </string-array>
+    <string name="led_race_note">The bar follows the revs: green, red, purple</string>
+    <string name="led_status_no_mic">needs microphone permission</string>
+    <string name="led_status_no_sound">hears no sound</string>
+    <string name="led_report_model">Model: %1$s</string>
+    <string name="led_report_model_unknown">not known (choose the device again to read it)</string>
+    <string name="led_report_link">MTU %1$d, up to %2$d bytes a write</string>
+    <string name="led_report_method">LED command: %1$s</string>
     <string name="led_pixels_auto">as the controller says</string>
     <string name="led_pixels_auto_found">as the controller says (%1$d)</string>
     <string name="led_pixels_count">%1$d LEDs</string>
@@ -177,7 +205,7 @@
     <string name="led_report_each">Rev bar: LED by LED</string>
     <string name="led_report_too_long">Rev bar: one colour (too many LEDs for one write)</string>
     <string name="led_report_one">Rev bar: one colour (LED count not known: set it under Rev bar: LEDs)</string>
-    <string name="led_report_answer">Last answer: %1$s</string>
+    <string name="led_report_answer">Answer: %1$s</string>
     <string name="set_led_brake">Race: braking</string>
     <string-array name="led_brakes">
         <item>Sensitive</item>
@@ -186,7 +214,7 @@
     </string-array>
     <string name="set_led_status">Status</string>
     <string name="set_led_help">Help</string>
-    <string name="led_help">Cockpit drives Bluetooth LED controllers itself: ZENGGE (LEDnetWF), ELK-BLEDOM (Lotus Lantern, Duoco Strip and most footwell kits), Triones and Magic Home BLE (HappyLighting).\n\nA controller takes one connection at a time. Close its own app first, on the unit and on your phone, then choose it here.\n\nNormal: the dashboard is a rev bar, as on a racing car\'s wheel: at idle its left end is green, it fills to the right as the revs rise, red half way, purple at the end, and all of it flashes at the shift light. That takes an addressable (\"symphony\") strip on a ZENGGE controller, set to one segment in its app; any other strip changes colour along the same scale. Rev bar: try it runs it once. The footwells follow the fuel (red up to the low mark, orange, their colour from the high mark).\nRace: green while the car pulls, red while it brakes, with the shift light.\nAmbient: Cockpit\'s ambient colour.\nStatic: each strip\'s own colour.\n\nIf a strip says \'unknown type\', Status lists its services: send them over and its protocol can be added.</string>
+    <string name="led_help">Cockpit drives Bluetooth LED controllers itself: ZENGGE (LEDnetWF), ELK-BLEDOM (Lotus Lantern, Duoco Strip and most footwell kits), Triones and Magic Home BLE (HappyLighting).\n\nA controller takes one connection at a time. Close its own app first, on the unit and on your phone, then choose it here.\n\nNormal: each strip\'s two colours chase each other slowly from left to right (a strip that cannot light its LEDs one by one fades from one to the other).\nRace: the dashboard is a rev bar, as on a racing car\'s wheel: at idle its left end is green, it fills to the right as the revs rise, red half way, purple at the end, and all of it flashes at the shift light. The footwells keep their colour and flash red while you brake.\nMusic: the dashboard fills from the left with the music, the footwells pulse with the bass. What the unit plays is heard through Android; if the radio does not show, choose the microphone.\nStatic: each strip\'s first colour.\n\nLED by LED takes an addressable (\"symphony\") strip on a ZENGGE controller, set to one segment in its app. If the bar does not fill from the left, set Rev bar: LEDs to the strip\'s LED count and try both LED commands with Rev bar: try it. Status shows the controller\'s model and its answers: send them over if it still does not work.</string>
     <string name="led_choose">Choose</string>
     <string name="led_scan_none">None (remove)</string>
     <string name="led_no_ble">This unit has no Bluetooth LE that apps can use.</string>
